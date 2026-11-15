@@ -269,3 +269,43 @@ async def test_reset_button(
     system._tick(None)
     await hass.async_block_till_done()  # re-baselined: only the new 0.5 counts
     assert float(state_of(hass, "sensor.airco_outdoor_unit_electricity_heating").state) == 0.5
+
+
+async def test_picking_a_built_in_model(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    entry = await setup(hass, sim, capabilities, model="ASEH14KJCAL")
+    (sub,) = entry.subentries.values()
+    result = await entry.start_subentry_reconfigure_flow(hass, sub.subentry_id)
+    schema = result["data_schema"].schema
+    (model_key,) = [k for k in schema if k == CONF_MODEL]
+    assert model_key.description["suggested_value"] == "aseh14kjcal"  # stored by name
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_HOST: "127.0.0.1", CONF_MODEL: "aseh07kjcal"}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+    assert entry.subentries[sub.subentry_id].data[CONF_MODEL] == "ASEH07KJCAL"
+    result = await entry.start_subentry_reconfigure_flow(hass, sub.subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_HOST: "127.0.0.1", CONF_MODEL: "none"}
+    )
+    await hass.async_block_till_done()
+    assert entry.subentries[sub.subentry_id].data[CONF_MODEL] == ""
+
+
+def test_model_options_are_valid_translation_keys() -> None:
+    import json
+    import re
+    from pathlib import Path
+
+    from custom_components.airstage_direct.config_flow import unit_settings_schema
+
+    strings = json.loads(
+        (Path(__file__).parents[2] / "custom_components/airstage_direct/strings.json").read_text()
+    )
+    labels = strings["selector"]["model"]["options"]
+    (selector,) = [v for k, v in unit_settings_schema().schema.items() if k == CONF_MODEL]
+    options = selector.config["options"]
+    assert set(options) == set(labels)
+    assert all(re.fullmatch(r"[a-z0-9]([a-z0-9-_]*[a-z0-9])?", o) for o in options)

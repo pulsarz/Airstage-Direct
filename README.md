@@ -92,11 +92,64 @@ it in the indoor unit's settings.
 - **Changes you make** with the remote, the app or Home Assistant show up
   within a few seconds through push.
 - **After a power cut** the adapter loses its clock and its monitor stops.
-  The integration notices, sets the clock and creates a repair notice.
+  The integration notices and sets the clock; only if the values still do not
+  come back does it show a repair notice.
 - **Outdoor low noise** is ignored by some multi-split outdoor units; the
   switch then shows it was refused.
 - The adapter keeps only a few push registrations, shared with the Fujitsu
   app.
+
+## Troubleshooting
+
+**The search finds no adapters.** The search only covers Home Assistant's own
+network (subnet). If the adapters are on another subnet or VLAN, or Home
+Assistant runs in Docker without host networking, choose "Enter the IP
+address" instead. If the setup then asks for the MAC address, the adapter is
+not in Home Assistant's ARP table (another subnet): it is printed on the
+adapter and shown in your router.
+
+**"No answer from this address".** Check the IP address in your router, and
+that the adapter is connected (the Fujitsu app can still reach it). An adapter
+answers on port 80 only.
+
+**Changes made with the remote take up to a minute to show.** Push updates are
+not arriving, so the integration falls back to reading the state every
+minute. The adapters must be able to reach Home Assistant on TCP port 10275:
+use host networking in Docker (or publish port 10275), and allow the port in
+any firewall between them. If Home Assistant cannot open the port at all, a
+repair notice says so, and the state is read every 10 seconds instead.
+
+**Temperatures and outdoor values change only every 5 minutes.** That is how
+often the adapter refreshes them; reading more often would not help.
+
+**Values stay unknown or frozen after a power cut.** The adapter lost its
+clock. The integration sets it, and the values return within about
+5 minutes. If they do not, a repair notice appears: switch the adapter (the
+indoor unit's power) off and on again.
+
+**An indoor unit added while it was off has no room temperature.** The unit
+reports no value until it runs for a while. The integration checks again
+after the unit is switched on and adds the missing entities by itself.
+
+**"Outdoor low noise" switches back off.** Some outdoor units, multi-splits
+in particular, refuse it; the switch then shows `refused_by_unit`.
+
+**The adapter's IP address changed.** Open the indoor unit's settings
+(Reconfigure) and enter the new address. A fixed address in your router
+avoids this.
+
+**Another local client stopped getting updates after you added the
+integration.** An adapter keeps only a few push registrations, and Home
+Assistant uses one per adapter, so a new one can replace the oldest.
+
+**The estimates are unknown.** Pick the indoor unit's model in its settings;
+without one there is no heat estimate. The hourly COP appears after
+15 minutes of data (marked provisional until it covers 55 minutes) and needs
+at least 0.05 kWh of electricity in that time.
+
+**Reporting a problem.** Open an issue with the integration's diagnostics
+(the device page → Download diagnostics). Addresses and MAC addresses are
+removed from it, but have a look before you post it.
 
 ## Documentation
 

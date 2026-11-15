@@ -380,7 +380,12 @@ class IndoorUnitSubentryFlow(_UnitSteps, ConfigSubentryFlow):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
-                unit_settings_schema(), {**subentry.data, **(user_input or {})}
+                unit_settings_schema(),
+                {
+                    **subentry.data,
+                    CONF_MODEL: model_option(subentry.data.get(CONF_MODEL)),
+                    **(user_input or {}),
+                },
             ),
             errors=errors,
         )
@@ -410,12 +415,35 @@ UNIT_SETTING_KEYS = (
 )
 
 
+MODEL_OPTION_NONE = "none"
+
+
+def model_option(stored: str | None) -> str:
+    """The selector option for a stored model. Option keys must be lowercase
+    (translation keys), while the stored value stays the model's own name."""
+    if stored == MODEL_CUSTOM:
+        return MODEL_CUSTOM
+    if stored in FAN_CURVES:
+        return stored.lower()
+    return MODEL_OPTION_NONE
+
+
+def model_from_option(option: str | None) -> str:
+    """The model to store for a selector option ("" for none)."""
+    if option == MODEL_CUSTOM:
+        return MODEL_CUSTOM
+    for model in FAN_CURVES:
+        if option and option.lower() == model.lower():
+            return model
+    return MODEL_NONE
+
+
 def unit_settings_schema() -> probatio.Schema:
-    models = [MODEL_NONE, *FAN_CURVES, MODEL_CUSTOM]
+    models = [MODEL_OPTION_NONE, *(m.lower() for m in FAN_CURVES), MODEL_CUSTOM]
     return probatio.Schema(
         {
             probatio.Required(CONF_HOST): str,
-            probatio.Optional(CONF_MODEL, default=MODEL_NONE): SelectSelector(
+            probatio.Optional(CONF_MODEL, default=MODEL_OPTION_NONE): SelectSelector(
                 SelectSelectorConfig(options=models, translation_key="model")
             ),
             probatio.Optional(CONF_CURVE_SLOPE): NumberSelector(
@@ -436,7 +464,7 @@ def unit_settings_schema() -> probatio.Schema:
 
 def unit_settings(user_input: dict[str, Any]) -> dict[str, Any] | None:
     """The estimate settings to store, or None when "custom" lacks its curve."""
-    model = user_input.get(CONF_MODEL, MODEL_NONE)
+    model = model_from_option(user_input.get(CONF_MODEL))
     settings: dict[str, Any] = {CONF_MODEL: model}
     if model == MODEL_CUSTOM:
         slope, intercept = user_input.get(CONF_CURVE_SLOPE), user_input.get(CONF_CURVE_INTERCEPT)

@@ -337,9 +337,9 @@
   "selector": {
     "model": {
       "options": {
-        "": "Not set (no heat estimate)",
-        "ASEH07KJCAL": "ASEH07KJCAL",
-        "ASEH14KJCAL": "ASEH14KJCAL",
+        "none": "Not set (no heat estimate)",
+        "aseh07kjcal": "ASEH07KJCAL",
+        "aseh14kjcal": "ASEH14KJCAL",
         "custom": "Custom fan curve"
       }
     }

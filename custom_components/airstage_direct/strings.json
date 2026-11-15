@@ -1,0 +1,366 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add an Airstage system",
+        "description": "One system is one outdoor unit with its indoor units. Give it a name, then add the first indoor unit.",
+        "data": {
+          "name": "System name"
+        }
+      },
+      "first_unit": {
+        "title": "First indoor unit",
+        "menu_options": {
+          "search": "Search the network",
+          "manual": "Enter the IP address"
+        }
+      },
+      "pick": {
+        "title": "Adapters found",
+        "data": {
+          "host": "Adapter",
+          "name": "Name of this indoor unit"
+        }
+      },
+      "manual": {
+        "title": "Indoor unit",
+        "data": {
+          "host": "IP address of the Wi-Fi adapter",
+          "name": "Name of this indoor unit",
+          "device_id": "MAC address of the adapter (only if asked)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No answer from this address.",
+      "mac_needed": "The adapter answers, but its MAC address could not be found automatically. Enter it (printed on the adapter or shown in your router).",
+      "wrong_mac": "The adapter answers, but not with this MAC address.",
+      "invalid_mac": "This is not a MAC address.",
+      "none_found": "No adapters found on this network. Enter the IP address instead.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This indoor unit is already set up."
+    },
+    "progress": {
+      "searching": "Searching the network for Airstage adapters. This takes about 15 seconds."
+    }
+  },
+  "config_subentries": {
+    "indoor_unit": {
+      "initiate_flow": {
+        "user": "Add indoor unit"
+      },
+      "entry_type": "Indoor unit",
+      "step": {
+        "user": {
+          "title": "Add indoor unit",
+          "menu_options": {
+            "search": "Search the network",
+            "manual": "Enter the IP address"
+          }
+        },
+        "pick": {
+          "title": "Adapters found",
+          "data": {
+            "host": "Adapter",
+            "name": "Name of this indoor unit"
+          }
+        },
+        "manual": {
+          "title": "Indoor unit",
+          "data": {
+            "host": "IP address of the Wi-Fi adapter",
+            "name": "Name of this indoor unit",
+            "device_id": "MAC address of the adapter (only if asked)"
+          }
+        },
+        "reconfigure": {
+          "title": "Indoor unit settings",
+          "description": "The model selects the fan curve used for the heat estimate. The adapter does not report its unit's model, so pick it here; without a model, the unit gets no heat estimate. A room humidity sensor adds the moisture removed to the cooling estimate.",
+          "data": {
+            "host": "IP address of the Wi-Fi adapter",
+            "model": "Indoor unit model",
+            "curve_slope": "Custom fan curve: m³/h per rpm",
+            "curve_intercept": "Custom fan curve: m³/h at 0 rpm",
+            "rated_airflow": "Custom model: rated airflow at High (m³/h)",
+            "humidity_entity": "Room humidity sensor"
+          },
+          "data_description": {
+            "rated_airflow": "From the same manual table as the fan curve. Lets the coil effectiveness rise at lower fan speeds; without it, it stays fixed."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "No answer from this address.",
+        "mac_needed": "The adapter answers, but its MAC address could not be found automatically. Enter it (printed on the adapter or shown in your router).",
+        "wrong_mac": "The adapter answers, but not with this MAC address.",
+        "invalid_mac": "This is not a MAC address.",
+        "none_found": "No adapters found on this network. Enter the IP address instead.",
+        "host_in_use": "This address belongs to another indoor unit that is already set up.",
+        "unknown": "Unexpected error.",
+        "curve_needed": "A custom model needs both the slope and the intercept of its fan curve."
+      },
+      "abort": {
+        "already_configured": "This indoor unit is already set up.",
+        "reconfigure_successful": "The IP address was changed."
+      },
+      "progress": {
+        "searching": "Searching the network for Airstage adapters. This takes about 15 seconds."
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "airstage": {
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "auto": "Auto",
+              "quiet": "Quiet",
+              "low": "Low",
+              "low_medium": "Low-medium",
+              "medium": "Medium",
+              "medium_high": "Medium-high",
+              "high": "High"
+            }
+          },
+          "preset_mode": {
+            "state": {
+              "none": "None",
+              "eco": "Economy",
+              "boost": "Powerful",
+              "min_heat": "Minimum heat"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "room_temperature": {
+        "name": "Room temperature"
+      },
+      "intake_temperature": {
+        "name": "Intake temperature"
+      },
+      "corrected_intake_temperature": {
+        "name": "Corrected intake temperature"
+      },
+      "coil_temperature": {
+        "name": "Coil temperature"
+      },
+      "fan_speed": {
+        "name": "Fan speed"
+      },
+      "operating_time": {
+        "name": "Operating time"
+      },
+      "filter_time": {
+        "name": "Filter time"
+      },
+      "fan_operating_time": {
+        "name": "Fan operating time"
+      },
+      "error_code": {
+        "name": "Error code"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "outdoor_temperature": {
+        "name": "Outdoor temperature"
+      },
+      "compressor_frequency": {
+        "name": "Compressor frequency"
+      },
+      "outdoor_current": {
+        "name": "Outdoor current"
+      },
+      "discharge_temperature": {
+        "name": "Discharge temperature"
+      },
+      "outdoor_coil_temperature": {
+        "name": "Outdoor coil temperature"
+      },
+      "outdoor_coil_outlet_temperature": {
+        "name": "Outdoor coil outlet temperature"
+      },
+      "outdoor_fan_speed": {
+        "name": "Outdoor fan speed"
+      },
+      "expansion_valve": {
+        "name": "Expansion valve {number}"
+      },
+      "four_way_valve": {
+        "name": "4-way valve"
+      },
+      "compressor_operating_time": {
+        "name": "Compressor operating time"
+      },
+      "outdoor_fan_operating_time": {
+        "name": "Outdoor fan operating time"
+      },
+      "estimated_heat_output": {
+        "name": "Estimated heat output"
+      },
+      "estimated_cooling_output": {
+        "name": "Estimated cooling output"
+      },
+      "estimated_cooling_output_sensible": {
+        "name": "Estimated cooling output (sensible only)"
+      },
+      "estimated_heat_output_total": {
+        "name": "Estimated heat output, total"
+      },
+      "estimated_cooling_output_total": {
+        "name": "Estimated cooling output, total"
+      },
+      "estimated_heat_energy": {
+        "name": "Estimated heat energy"
+      },
+      "estimated_cooling_energy": {
+        "name": "Estimated cooling energy"
+      },
+      "estimated_cop_1h": {
+        "name": "Estimated COP (1 h)"
+      },
+      "estimated_scop_month": {
+        "name": "Estimated SCOP (this month)"
+      },
+      "estimated_scop_year": {
+        "name": "Estimated SCOP (this year)"
+      },
+      "estimated_seer_month": {
+        "name": "Estimated SEER (this month)"
+      },
+      "estimated_seer_year": {
+        "name": "Estimated SEER (this year)"
+      },
+      "carnot_cop": {
+        "name": "Estimated Carnot maximum COP"
+      },
+      "electricity_heating": {
+        "name": "Electricity, heating"
+      },
+      "electricity_cooling": {
+        "name": "Electricity, cooling"
+      },
+      "electricity_heating_estimated": {
+        "name": "Estimated electricity, heating"
+      },
+      "electricity_cooling_estimated": {
+        "name": "Estimated electricity, cooling"
+      }
+    },
+    "binary_sensor": {
+      "malfunction": {
+        "name": "Malfunction"
+      },
+      "compressor_running": {
+        "name": "Compressor running"
+      }
+    },
+    "switch": {
+      "economy": {
+        "name": "Economy"
+      },
+      "powerful": {
+        "name": "Powerful"
+      },
+      "minimum_heat": {
+        "name": "Minimum heat"
+      },
+      "energy_saving_fan": {
+        "name": "Energy-saving fan"
+      },
+      "outdoor_low_noise": {
+        "name": "Outdoor low noise"
+      },
+      "wifi_led": {
+        "name": "Wi-Fi LED"
+      },
+      "human_sensor": {
+        "name": "Human sensor"
+      }
+    },
+    "select": {
+      "vertical_louvre": {
+        "name": "Vertical louvre",
+        "state": {
+          "1": "1 (highest)",
+          "2": "2",
+          "3": "3",
+          "4": "4 (lowest)"
+        }
+      },
+      "horizontal_louvre": {
+        "name": "Horizontal louvre",
+        "state": {
+          "1": "1 (left)",
+          "2": "2",
+          "3": "3 (middle)",
+          "4": "4",
+          "5": "5 (right)"
+        }
+      }
+    },
+    "button": {
+      "reset_estimates": {
+        "name": "Reset estimate counters"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_value": {
+      "message": "Not a valid value for this unit: {error}"
+    },
+    "write_refused": {
+      "message": "The indoor unit refused this."
+    },
+    "write_failed": {
+      "message": "The indoor unit did not accept the change ({result})."
+    },
+    "connection_failed": {
+      "message": "Could not reach the adapter: {error}"
+    }
+  },
+  "issues": {
+    "push_unavailable": {
+      "title": "Airstage push updates are off",
+      "description": "Home Assistant could not listen on port {port}, which the adapters send their updates to. Changes from the remote control show up within 10 seconds instead of at once. Make sure nothing else uses port {port}, and that Home Assistant uses host networking if it runs in Docker, then restart Home Assistant."
+    },
+    "clock_lost": {
+      "title": "{unit}: the adapter lost its clock",
+      "description": "The Wi-Fi adapter of {unit} lost its clock (after a power cut, for example), so its service values stay frozen. Home Assistant set the clock, but the values did not come back. Switching the adapter off and on again, or waiting for the Airstage cloud to set the clock, usually helps."
+    }
+  },
+  "selector": {
+    "model": {
+      "options": {
+        "": "Not set (no heat estimate)",
+        "ASEH07KJCAL": "ASEH07KJCAL",
+        "ASEH14KJCAL": "ASEH14KJCAL",
+        "custom": "Custom fan curve"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "System settings",
+        "data": {
+          "estimates": "Estimates (heat output, COP, SCOP, SEER)",
+          "coil_effectiveness": "Coil effectiveness at High fan",
+          "airflow_scale": "Airflow scale",
+          "electricity_meter": "Electricity meter for the airco (kWh)",
+          "preferred_outdoor_unit": "Preferred unit for outdoor values",
+          "push": "Push updates from the adapters"
+        },
+        "data_description": {
+          "electricity_meter": "Without one, electricity is estimated from the outdoor unit's current x 230 V.",
+          "coil_effectiveness": "Default 0.85, at the High fan airflow. Lower fan speeds get a higher value (about 0.90 at Medium, 0.93 at Quiet). Scales every heat estimate."
+        }
+      }
+    }
+  }
+}

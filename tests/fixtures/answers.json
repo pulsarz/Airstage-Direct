@@ -1,0 +1,33 @@
+{
+  "adapter_unknown_name": {
+    "cause": "",
+    "device_id": "AABBCCDDEEFF",
+    "device_sub_id": 1,
+    "error": "",
+    "modified_by": "",
+    "read_res": "ack",
+    "req_id": "",
+    "result": "OK",
+    "set_level": "03",
+    "value": {}
+  },
+  "empty_device_id": {
+    "error": "0002",
+    "result": "NG"
+  },
+  "no_known_name": {
+    "cause": "",
+    "device_id": "AABBCCDDEEFF",
+    "device_sub_id": 0,
+    "error": "0013",
+    "modified_by": "",
+    "req_id": "",
+    "result": "NG",
+    "set_level": "03",
+    "value": {}
+  },
+  "register_ok": {
+    "error": "",
+    "result": "OK"
+  }
+}

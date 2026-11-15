@@ -1,0 +1,148 @@
+{
+  "17xx_alone_plus_2": {
+    "list": [
+      "iu_set_tmp",
+      "iu_malfnc_detail",
+      "iu_room",
+      "iu_buzzer",
+      "hmdf_onoff",
+      "hmdf_stat",
+      "ou_exp_vlv5",
+      "ou_four_way_vlv"
+    ],
+    "missing": []
+  },
+  "b8": {
+    "list": [
+      "iu_set_tmp",
+      "iu_malfnc_detail",
+      "iu_room",
+      "iu_buzzer",
+      "hmdf_onoff",
+      "hmdf_stat",
+      "iu_outdoor_tmp",
+      "ou_outdoor_tmp",
+      "ou_disc_tmp",
+      "ou_heat_ex_tmp",
+      "ou_heat_ex_tmp_out",
+      "ou_fan_rot1",
+      "ou_fan_rot2",
+      "ou_cmp_freq",
+      "ou_exp_vlv1",
+      "ou_exp_vlv2",
+      "ou_exp_vlv3",
+      "ou_exp_vlv4",
+      "ou_exp_vlv5",
+      "ou_four_way_vlv"
+    ],
+    "missing": [
+      "ou_exp_vlv5",
+      "ou_four_way_vlv"
+    ]
+  },
+  "b8_17xx_last": {
+    "list": [
+      "iu_set_tmp",
+      "iu_outdoor_tmp",
+      "ou_outdoor_tmp",
+      "ou_disc_tmp",
+      "ou_heat_ex_tmp",
+      "ou_heat_ex_tmp_out",
+      "ou_fan_rot1",
+      "ou_fan_rot2",
+      "ou_cmp_freq",
+      "ou_exp_vlv1",
+      "ou_exp_vlv2",
+      "ou_exp_vlv3",
+      "ou_exp_vlv4",
+      "ou_exp_vlv5",
+      "ou_four_way_vlv",
+      "iu_malfnc_detail",
+      "iu_room",
+      "iu_buzzer",
+      "hmdf_onoff",
+      "hmdf_stat"
+    ],
+    "missing": [
+      "hmdf_stat"
+    ]
+  },
+  "b8_reversed": {
+    "list": [
+      "iu_set_tmp",
+      "ou_four_way_vlv",
+      "ou_exp_vlv5",
+      "ou_exp_vlv4",
+      "ou_exp_vlv3",
+      "ou_exp_vlv2",
+      "ou_exp_vlv1",
+      "ou_cmp_freq",
+      "ou_fan_rot2",
+      "ou_fan_rot1",
+      "ou_heat_ex_tmp_out",
+      "ou_heat_ex_tmp",
+      "ou_disc_tmp",
+      "ou_outdoor_tmp",
+      "iu_outdoor_tmp",
+      "hmdf_stat",
+      "hmdf_onoff",
+      "iu_buzzer",
+      "iu_room",
+      "iu_malfnc_detail"
+    ],
+    "missing": []
+  },
+  "b8_without_17xx": {
+    "list": [
+      "iu_set_tmp",
+      "iu_outdoor_tmp",
+      "ou_outdoor_tmp",
+      "ou_disc_tmp",
+      "ou_heat_ex_tmp",
+      "ou_heat_ex_tmp_out",
+      "ou_fan_rot1",
+      "ou_fan_rot2",
+      "ou_cmp_freq",
+      "ou_exp_vlv1",
+      "ou_exp_vlv2",
+      "ou_exp_vlv3",
+      "ou_exp_vlv4",
+      "ou_exp_vlv5",
+      "ou_four_way_vlv"
+    ],
+    "missing": []
+  },
+  "b9_model_first": {
+    "list": [
+      "iu_set_tmp",
+      "ou_model",
+      "ou_current",
+      "iu_cmp_time",
+      "ou_fan1_time",
+      "ou_fan2_time",
+      "iu_main_ver",
+      "iu_eep_ver",
+      "wla_has_sremo",
+      "wla_has_wtim",
+      "iu_onoff",
+      "iu_op_mode"
+    ],
+    "missing": [
+      "ou_fan2_time",
+      "iu_main_ver",
+      "iu_eep_ver",
+      "wla_has_sremo",
+      "wla_has_wtim",
+      "iu_onoff",
+      "iu_op_mode"
+    ]
+  },
+  "small": {
+    "list": [
+      "iu_set_tmp",
+      "ou_exp_vlv5",
+      "ou_four_way_vlv"
+    ],
+    "missing": []
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "_note": "Phase 0 test of cycle_monitor delivery. Keeps the adapter's default periodic objects (wla_rssi, iu_pow_inf_yest, iu_indoor_tmp) and adds monitor objects. iu_monitor1 left out on purpose.",
+  "init_ntfy": ["iu_onoff", "iu_op_mode", "iu_set_tmp", "iu_fan_spd"],
+  "change_monitor": ["iu_onoff", "iu_op_mode", "iu_set_tmp", "iu_fan_spd"],
+  "cycle_monitor": [
+    "wla_rssi", "iu_pow_inf_yest", "iu_indoor_tmp",
+    "iu_suct_tmp", "iu_indoor_tmp_crct", "iu_heat_ex_tmp", "iu_fan_rot1",
+    "ou_outdoor_tmp", "ou_disc_tmp", "ou_heat_ex_tmp", "ou_heat_ex_tmp_out",
+    "ou_fan_rot1", "ou_cmp_freq", "ou_exp_vlv1", "ou_four_way_vlv", "ou_current"
+  ]
+}

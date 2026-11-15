@@ -1,0 +1,11 @@
+{
+  "_note": "Phase 0, second cycle_monitor test: same objects as cycle_test.json, monitor objects first, the adapter's default periodic objects last. Tells a fixed report from one that takes the first few entries.",
+  "init_ntfy": ["iu_onoff", "iu_op_mode", "iu_set_tmp", "iu_fan_spd"],
+  "change_monitor": ["iu_onoff", "iu_op_mode", "iu_set_tmp", "iu_fan_spd"],
+  "cycle_monitor": [
+    "ou_cmp_freq", "ou_current", "iu_suct_tmp", "iu_heat_ex_tmp", "ou_outdoor_tmp",
+    "iu_indoor_tmp_crct", "iu_fan_rot1", "ou_disc_tmp", "ou_heat_ex_tmp", "ou_heat_ex_tmp_out",
+    "ou_fan_rot1", "ou_exp_vlv1", "ou_four_way_vlv",
+    "wla_rssi", "iu_pow_inf_yest", "iu_indoor_tmp"
+  ]
+}

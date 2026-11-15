@@ -1,0 +1,13 @@
+{
+  "domain": "airstage_direct",
+  "name": "Airstage Direct for Fujitsu",
+  "codeowners": ["@pulsarz"],
+  "config_flow": true,
+  "dependencies": ["network"],
+  "documentation": "https://github.com/pulsarz/Airstage-Direct",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/pulsarz/Airstage-Direct/issues",
+  "requirements": [],
+  "version": "0.0.1b10"
+}

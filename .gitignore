@@ -1,0 +1,27 @@
+# Personal Claude Code files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Phase 0 output that may contain your network details; commit only
+# reviewed fixtures under tests/fixtures/
+tools/airstage/out/
+tools/airstage/units.local.json
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

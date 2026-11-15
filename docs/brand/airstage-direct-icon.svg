@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Airstage Direct for Fujitsu: an "A" with a cool leg (blue), a warm leg
+       (Fujitsu red) and an airflow wave for the crossbar. Original design;
+       not affiliated with Fujitsu. -->
+  <defs>
+    <linearGradient id="cool" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#2BB5E8"/><stop offset="1" stop-color="#0F4C81"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#FF5A64"/><stop offset="1" stop-color="#E60012"/>
+    </linearGradient>
+  </defs>
+  <path d="M50 222 L128 36" stroke="url(#cool)" stroke-width="36" stroke-linecap="round"/>
+  <path d="M206 222 L128 36" stroke="url(#warm)" stroke-width="36" stroke-linecap="round"/>
+  <path d="M74 156 q18 -16 36 0 t36 0 t36 0" fill="none" stroke="#6B7280" stroke-width="22" stroke-linecap="round"/>
+  <path d="M74 156 q18 -16 36 0 t36 0 t36 0" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+</svg>

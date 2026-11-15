@@ -1,0 +1,127 @@
+<p align="center"><img src="custom_components/airstage_direct/brand/icon.png" width="128" alt=""></p>
+
+# Airstage Direct for Fujitsu
+
+A Home Assistant integration that controls Fujitsu air conditioners with an
+Airstage Wi-Fi adapter **directly over your local network**. No cloud
+account, no internet connection: Home Assistant talks to the adapters and the
+adapters push changes back within seconds.
+
+> **Beta.** Tested on one multi-split system (ASEH14KJCAL and ASEH07KJCAL
+> indoor units, AP-WH3E-B adapters), in heating. Cooling has not been tested
+> on real units yet, and the estimates are just that. Reports from other
+> models are very welcome.
+>
+> Not affiliated with, endorsed by or supported by Fujitsu. "Fujitsu" and
+> "Airstage" are trademarks of their owners.
+
+## What you get
+
+Per indoor unit:
+
+- **Climate:** on/off, mode (auto, cool, dry, fan, heat), setpoint, fan speed
+  (auto, quiet, low, low-medium, medium, medium-high, high), vertical and
+  horizontal swing, presets (eco, boost, minimum heat) where the unit has them.
+- **Louvre positions** (selects) and **switches** for economy, powerful,
+  minimum heat, energy-saving fan, outdoor low noise, the Wi-Fi LED and the
+  human sensor, where the unit supports them.
+- **Sensors:** room, intake and coil temperature, indoor fan speed, error
+  code, a malfunction binary sensor; Wi-Fi signal and run-time counters
+  (disabled by default).
+
+For the outdoor unit (one device per system, shared by all indoor units):
+
+- Outdoor temperature, compressor frequency, current, a compressor-running
+  binary sensor; discharge and coil temperatures, fan speed and valves
+  (disabled by default).
+
+Optional **estimates**, clearly labelled "Estimated": heat and cooling output
+per unit, heat energy, COP over the last hour, SCOP and SEER per month and
+year, and a Carnot upper bound as a sanity check. They use the measured fan
+speed and coil temperatures; with your own electricity meter for the airco
+they get much better. How they work and how far to trust them (about
+±20–25 %): [docs/estimates.md](docs/estimates.md).
+
+Only what an enabled entity needs is read, and the adapters are never asked
+more than once per second.
+
+## Requirements
+
+- Home Assistant 2026.10 or newer.
+- Fujitsu indoor units with an Airstage Wi-Fi adapter that are already
+  connected to your Wi-Fi, for example with the Fujitsu app. The integration
+  does not use the cloud. Running with the adapters cut off from the internet
+  has not been tested; the state is also read every minute, so at worst
+  changes would show up more slowly.
+- Home Assistant must be able to receive connections on **TCP port 10275**
+  from the adapters (for push). In Docker, use host networking or publish
+  that port.
+
+## Installation
+
+**HACS:** add this repository as a custom repository (type: Integration),
+install "Airstage Direct for Fujitsu", and restart Home Assistant.
+
+**Manually:** copy `custom_components/airstage_direct` into your
+`config/custom_components/` folder and restart Home Assistant.
+
+## Setup
+
+1. Settings → Devices & services → Add integration → **Airstage Direct for
+   Fujitsu**. Give the system (one outdoor unit) a name.
+2. Add your first indoor unit: **Search the network** finds the adapters on
+   your subnet (about 15 seconds), or enter the adapter's IP address. Give it
+   a name.
+3. Add more indoor units to the same system with **Add indoor unit**.
+4. Optional, per indoor unit (its settings): pick the **model** so the heat
+   estimate knows its fan curve, and a room humidity sensor for the cooling
+   estimate.
+5. Optional, system settings: switch estimates off, pick an **electricity
+   meter** (kWh) for the airco, the indoor unit to take outdoor values from,
+   or switch push off (then the state is polled every 10 s).
+
+Give the adapters a fixed IP address in your router; if one changes, update
+it in the indoor unit's settings.
+
+## Good to know
+
+- **Monitor values update every 5 minutes.** Temperatures other than the room
+  temperature, the fan speed and everything from the outdoor unit come from
+  the adapter's service monitor, which only refreshes every 5 minutes. The
+  integration reads it once per refresh, at the right moment.
+- **Changes you make** with the remote, the app or Home Assistant show up
+  within a few seconds through push.
+- **After a power cut** the adapter loses its clock and its monitor stops.
+  The integration notices, sets the clock and creates a repair notice.
+- **Outdoor low noise** is ignored by some multi-split outdoor units; the
+  switch then shows it was refused.
+- The adapter keeps only a few push registrations, shared with the Fujitsu
+  app.
+
+## Documentation
+
+- [docs/protocol.md](docs/protocol.md): the adapter's local API as this
+  integration uses it.
+- [docs/measurements.md](docs/measurements.md): what was measured on real
+  units, with dates.
+- [docs/estimates.md](docs/estimates.md): the estimate formulas.
+- [tools/airstage/README.md](tools/airstage/README.md): read-only measurement
+  tools for adding support for other models.
+
+## Development
+
+Python 3.14 and [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv sync
+uv run pytest
+uv run ruff check && uv run ruff format --check
+uv run mypy
+```
+
+The tests run against a simulated adapter built from recorded (redacted)
+answers.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).

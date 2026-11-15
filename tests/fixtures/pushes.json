@@ -1,0 +1,104 @@
+[
+  {
+    "body": {
+      "device_id": "AABBCCDDEEFF",
+      "device_sub_id": 0,
+      "value": {
+        "iu_indoor_tmp": "7200",
+        "iu_pow_inf_yest": "----/--/--,-,-",
+        "wla_rssi": "-54"
+      }
+    },
+    "unit": "Downstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEEFF",
+      "device_sub_id": 1,
+      "value": {
+        "iu_monitor1": "0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+      }
+    },
+    "unit": "Downstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEEFF",
+      "device_sub_id": 0,
+      "value": {
+        "iu_fan_spd": "0",
+        "iu_indoor_tmp": "7200",
+        "iu_onoff": "1",
+        "iu_op_mode": "4",
+        "iu_set_tmp": "220"
+      }
+    },
+    "unit": "Downstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEEFF",
+      "device_sub_id": 0,
+      "value": {
+        "iu_set_tmp": "220"
+      }
+    },
+    "unit": "Downstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEEFF",
+      "device_sub_id": 0,
+      "value": {
+        "iu_fan_spd": "2"
+      }
+    },
+    "unit": "Downstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEEFF",
+      "device_sub_id": 0,
+      "value": {
+        "iu_fan_spd": "2",
+        "iu_set_tmp": "220"
+      }
+    },
+    "unit": "Downstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEE01",
+      "device_sub_id": 0,
+      "value": {
+        "iu_hmd": "65535",
+        "iu_indoor_tmp": "7400",
+        "iu_outdoor_tmp": "5900",
+        "iu_pow_cons": "5626",
+        "iu_pow_inf_yest": "----/--/--,-,-",
+        "wla_rssi": "-49"
+      }
+    },
+    "unit": "Upstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEE01",
+      "device_sub_id": 0,
+      "value": {
+        "iu_set_tmp": "270"
+      }
+    },
+    "unit": "Upstairs"
+  },
+  {
+    "body": {
+      "device_id": "AABBCCDDEE01",
+      "device_sub_id": 0,
+      "value": {
+        "iu_fan_spd": "9"
+      }
+    },
+    "unit": "Upstairs"
+  }
+]

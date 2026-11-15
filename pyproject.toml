@@ -1,0 +1,49 @@
+[project]
+name = "airstage-direct"
+version = "0.0.0"
+description = "Home Assistant integration for Fujitsu Airstage adapters (local API)"
+license = "Apache-2.0"
+requires-python = ">=3.14.2"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "aiohttp",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov>=7.1.0",
+    "pytest-homeassistant-custom-component>=0.13.375",
+    "ruff",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "N", "A", "C4", "PT"]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = ["^tools/airstage/out/"]
+python_version = "3.14"
+files = ["custom_components", "tools", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["pytest_homeassistant_custom_component.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+# Tool tests use unittest so they also run without pytest.
+"tests/test_tools_airstage.py" = ["PT009", "PT027"]

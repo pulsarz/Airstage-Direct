@@ -108,7 +108,7 @@ change:
     the guard is switched off or the unit stops heating.
   - *Delay restarts:* needs the power sensor and a room temperature sensor
     in each indoor unit's settings. After the compressor stops while the room
-    is still warm, the guard lowers that unit's setpoint a little (0.5 °C by
+    is at or above your setpoint, the guard lowers that unit's setpoint a little (0.5 °C by
     default) until the room has cooled 0.3 °C below your setpoint, then puts
     it back. The thermostat card keeps showing your setpoint. A cold room is
     never held.

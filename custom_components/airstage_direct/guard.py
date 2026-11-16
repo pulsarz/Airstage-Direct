@@ -11,7 +11,7 @@ is a burst. Two levers, each optional:
   goes back to Auto.
 - **Restart delay.** Needs a power sensor (to see the compressor stop) and a
   room temperature sensor for the unit. After a stop, a unit whose room is
-  still warm (at or above its setpoint minus a band) gets its setpoint lowered
+  really warm (at or above its setpoint) gets its setpoint lowered
   a little, so the unit does not restart at the first moment it may. When the
   room has cooled to the setpoint minus the band, the setpoint goes back and
   the unit starts with real demand. A cold room is never held.
@@ -270,8 +270,11 @@ class UnitGuard:
         room, setpoint = self.room(), self.setpoint()
         if room is None or setpoint is None:
             return
-        if room < setpoint - self.system.band:
-            return  # the room is cold: let it restart
+        if room < setpoint:
+            # Below the setpoint the room needs heat: a stop there is the unit's
+            # own sensor reading too warm (measured: room 21.8 C at setpoint 22.0
+            # while the corrected intake read 23.25 C), not a warm room.
+            return
         lo = self._lowest()
         target = max(lo, setpoint - self.system.hold_offset)
         if target >= setpoint:

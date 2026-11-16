@@ -493,3 +493,14 @@ async def test_switching_the_guard_off_while_the_unit_is_off(
     unit.device.apply({"iu_onoff": "1"})
     await hass.async_block_till_done()
     assert writes(sim)[2:] == [{"iu_set_tmp": "220"}, {"iu_fan_spd": "0"}]
+
+
+async def test_a_room_below_the_setpoint_is_not_held(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    """Measured: room 21.8 C at setpoint 22.0 and the unit still stopped (its own
+    sensor read 23.25 C). The room needs heat, so no hold."""
+    room(hass, 21.8)
+    rig = await full_setup(hass, sim, capabilities)
+    await rig.run_then_stop()
+    assert writes(sim) == []

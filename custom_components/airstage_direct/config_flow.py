@@ -35,6 +35,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import discovery
+from .api.cycles import DEFAULT_OFF_W, DEFAULT_ON_W
 from .api.estimates import DEFAULT_AIRFLOW_SCALE, DEFAULT_EFFECTIVENESS, FAN_CURVES
 from .api.transport import (
     AirstageConnectionError,
@@ -45,6 +46,8 @@ from .api.transport import (
     format_device_id,
 )
 from .const import (
+    CLIMATE_TEMPERATURE_INTAKE,
+    CLIMATE_TEMPERATURE_ROOM,
     CONF_CURVE_INTERCEPT,
     CONF_CURVE_SLOPE,
     CONF_DEVICE_ID,
@@ -56,9 +59,13 @@ from .const import (
     MODEL_CUSTOM,
     MODEL_NONE,
     OPT_AIRFLOW_SCALE,
+    OPT_CLIMATE_TEMPERATURE,
+    OPT_COMPRESSOR_OFF_W,
+    OPT_COMPRESSOR_ON_W,
     OPT_EFFECTIVENESS,
     OPT_ESTIMATES,
     OPT_METER,
+    OPT_POWER_SENSOR,
     OPT_PREFERRED_UNIT,
     OPT_PUSH,
     SUBENTRY_INDOOR_UNIT,
@@ -482,8 +489,14 @@ class AirstageOptionsFlow(OptionsFlow):
     """System settings: estimates, the electricity meter, the outdoor source, push."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            on_w = user_input.get(OPT_COMPRESSOR_ON_W, DEFAULT_ON_W)
+            off_w = user_input.get(OPT_COMPRESSOR_OFF_W, DEFAULT_OFF_W)
+            if off_w >= on_w:
+                errors["base"] = "compressor_levels"
+            else:
+                return self.async_create_entry(data=user_input)
         units = [
             SelectOptionDict(value=sub.subentry_id, label=sub.title)
             for sub in self.config_entry.get_subentries_of_type(SUBENTRY_INDOOR_UNIT)
@@ -504,9 +517,37 @@ class AirstageOptionsFlow(OptionsFlow):
                     SelectSelectorConfig(options=units)
                 ),
                 probatio.Optional(OPT_PUSH, default=True): BooleanSelector(),
+                # Experimental (phase 7): compressor starts from a power sensor,
+                # and the temperature the thermostat card shows.
+                probatio.Optional(OPT_POWER_SENSOR): EntitySelector(
+                    EntitySelectorConfig(domain="sensor", device_class="power")
+                ),
+                probatio.Optional(OPT_COMPRESSOR_ON_W, default=DEFAULT_ON_W): NumberSelector(
+                    NumberSelectorConfig(
+                        min=20, max=3000, step=10, unit_of_measurement="W",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                probatio.Optional(OPT_COMPRESSOR_OFF_W, default=DEFAULT_OFF_W): NumberSelector(
+                    NumberSelectorConfig(
+                        min=10, max=2000, step=10, unit_of_measurement="W",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                probatio.Optional(
+                    OPT_CLIMATE_TEMPERATURE, default=CLIMATE_TEMPERATURE_ROOM
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[CLIMATE_TEMPERATURE_ROOM, CLIMATE_TEMPERATURE_INTAKE],
+                        translation_key=OPT_CLIMATE_TEMPERATURE,
+                    )
+                ),
             }
-        )
+        )  # fmt: skip
         return self.async_show_form(
             step_id="init",
-            data_schema=self.add_suggested_values_to_schema(schema, self.config_entry.options),
+            data_schema=self.add_suggested_values_to_schema(
+                schema, user_input or self.config_entry.options
+            ),
+            errors=errors,
         )

@@ -23,6 +23,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AirstageConfigEntry
 from .api.device import Device
+from .compressor_sensors import compressor_sensors
 from .coordinator import UnitCoordinator
 from .entity import AirstageEntity, OutdoorEntity
 from .estimate_sensors import system_sensors, unit_sensors
@@ -184,6 +185,8 @@ async def async_setup_entry(
         for subentry_id, entities in unit_sensors(estimates).items():
             async_add_entities(entities, config_subentry_id=subentry_id)
         async_add_entities(system_sensors(estimates, entry.entry_id, entry.title))
+    if runtime.compressor is not None:
+        async_add_entities(compressor_sensors(runtime.compressor, entry.entry_id, entry.title))
     outdoor = runtime.outdoor
     if runtime.units:
         async_add_entities(

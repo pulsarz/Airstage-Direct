@@ -14,6 +14,8 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+from .compressor import CompressorMonitor
+from .compressor_sensors import is_compressor_unique_id
 from .const import OPT_ESTIMATES, OPT_PREFERRED_UNIT, STORED_ONLY, SUBENTRY_INDOOR_UNIT
 from .coordinator import UnitCoordinator
 from .estimate_sensors import estimate_entity_ids, is_estimate_unique_id
@@ -37,6 +39,7 @@ class AirstageRuntime:
     outdoor: OutdoorSource
     estimates: SystemEstimates | None
     layout: str
+    compressor: CompressorMonitor | None = None  # experimental: needs a power sensor
 
 
 type AirstageConfigEntry = ConfigEntry[AirstageRuntime]
@@ -69,10 +72,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: AirstageConfigEntry) -> 
         if entry.options.get(OPT_ESTIMATES, True)
         else None
     )
-    entry.runtime_data = AirstageRuntime(units, outdoor, estimates, _layout(entry))
+    options = dict(entry.options)
+    compressor = CompressorMonitor(hass, options) if CompressorMonitor.configured(options) else None
+    entry.runtime_data = AirstageRuntime(units, outdoor, estimates, _layout(entry), compressor)
     # Different adapters: starting them in parallel keeps one request per adapter.
     await asyncio.gather(*(unit.async_start() for unit in units.values()))
     outdoor.start()
+    if compressor is not None:
+        compressor.start()
     if estimates is not None and estimates.active:
         await estimates.async_start()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -82,22 +89,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: AirstageConfigEntry) -> 
     # One monitor read now, so monitor values (and the estimates) need not wait
     # for the first scheduled read after learning; then once per refresh.
     await asyncio.gather(*(unit.async_read_monitor_now() for unit in units.values()))
-    _remove_stale_estimates(hass, entry)
+    _remove_stale_entities(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
 
-def _remove_stale_estimates(hass: HomeAssistant, entry: AirstageConfigEntry) -> None:
-    """Estimates that are switched off, or units without a model: remove their
-    entities instead of leaving them behind as unavailable."""
+def _remove_stale_entities(hass: HomeAssistant, entry: AirstageConfigEntry) -> None:
+    """Estimates that are switched off, units without a model, compressor sensors
+    without a power sensor: remove their entities instead of leaving them
+    behind as unavailable."""
     estimates = entry.runtime_data.estimates
     wanted = set()
     if estimates is not None and estimates.active:
         wanted = {e.unique_id for e in estimate_entity_ids(estimates, entry.entry_id)}
         wanted.add(f"{entry.entry_id}_reset_estimates")
     registry = er.async_get(hass)
+    compressor = entry.runtime_data.compressor is not None
     for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if is_estimate_unique_id(entity.unique_id) and entity.unique_id not in wanted:
+        unique_id = entity.unique_id
+        stale = (is_estimate_unique_id(unique_id) and unique_id not in wanted) or (
+            is_compressor_unique_id(unique_id) and not compressor
+        )
+        if stale:
             registry.async_remove(entity.entity_id)
 
 
@@ -110,6 +123,8 @@ async def _async_update_listener(hass: HomeAssistant, entry: AirstageConfigEntry
 async def async_unload_entry(hass: HomeAssistant, entry: AirstageConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     entry.runtime_data.outdoor.stop()
+    if (compressor := entry.runtime_data.compressor) is not None:
+        compressor.stop()
     if (estimates := entry.runtime_data.estimates) is not None and estimates.active:
         await estimates.async_stop()
     await asyncio.gather(*(unit.async_stop() for unit in entry.runtime_data.units.values()))

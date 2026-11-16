@@ -250,6 +250,12 @@
       },
       "electricity_cooling_estimated": {
         "name": "Estimated electricity, cooling"
+      },
+      "compressor_starts": {
+        "name": "Compressor starts"
+      },
+      "compressor_starts_last_hour": {
+        "name": "Compressor starts, last hour"
       }
     },
     "binary_sensor": {
@@ -342,6 +348,12 @@
         "aseh14kjcal": "ASEH14KJCAL",
         "custom": "Custom fan curve"
       }
+    },
+    "climate_temperature": {
+      "options": {
+        "room": "Room temperature (default)",
+        "corrected_intake": "Corrected intake (what the unit regulates on)"
+      }
     }
   },
   "options": {
@@ -354,13 +366,24 @@
           "airflow_scale": "Airflow scale",
           "electricity_meter": "Electricity meter for the airco (kWh)",
           "preferred_outdoor_unit": "Preferred unit for outdoor values",
-          "push": "Push updates from the adapters"
+          "push": "Push updates from the adapters",
+          "power_sensor": "Experimental: power sensor for the outdoor unit (W)",
+          "compressor_on_w": "Experimental: compressor running above",
+          "compressor_off_w": "Experimental: compressor stopped below",
+          "climate_temperature": "Experimental: current temperature on the thermostat card"
         },
         "data_description": {
           "electricity_meter": "Without one, electricity is estimated from the outdoor unit's current x 230 V.",
-          "coil_effectiveness": "Default 0.85, at the High fan airflow. Lower fan speeds get a higher value (about 0.90 at Medium, 0.93 at Quiet). Scales every heat estimate."
+          "coil_effectiveness": "Default 0.85, at the High fan airflow. Lower fan speeds get a higher value (about 0.90 at Medium, 0.93 at Quiet). Scales every heat estimate.",
+          "power_sensor": "A power meter for the airco alone. Adds compressor start counts to the outdoor unit, to spot short-cycling. Leave empty to keep things as they are.",
+          "compressor_on_w": "Default 250 W. Must be above the off level and below the compressor's lowest running power.",
+          "compressor_off_w": "Default 150 W. Must be above the meter's reading while the compressor is off.",
+          "climate_temperature": "The room temperature (default) or the corrected intake: the value the unit actually regulates on, updated every 5 minutes."
         }
       }
+    },
+    "error": {
+      "compressor_levels": "The compressor's off level must be below its on level."
     }
   }
 }

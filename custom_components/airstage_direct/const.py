@@ -41,6 +41,15 @@ OPT_AIRFLOW_SCALE: Final = "airflow_scale"
 OPT_METER: Final = "electricity_meter"  # an energy (kWh/Wh) sensor for the airco alone
 OPT_PREFERRED_UNIT: Final = "preferred_outdoor_unit"  # subentry id
 OPT_PUSH: Final = "push"
+# Experimental, phase 7: a power sensor for the outdoor unit (W or kW) gives
+# compressor starts and stops; the thermostat card can show the corrected intake.
+OPT_POWER_SENSOR: Final = "power_sensor"
+OPT_COMPRESSOR_ON_W: Final = "compressor_on_w"
+OPT_COMPRESSOR_OFF_W: Final = "compressor_off_w"
+OPT_CLIMATE_TEMPERATURE: Final = "climate_temperature"
+CLIMATE_TEMPERATURE_ROOM: Final = "room"  # iu_indoor_tmp, the default
+CLIMATE_TEMPERATURE_INTAKE: Final = "corrected_intake"  # iu_indoor_tmp_crct
+COMPRESSOR_TICK: Final = timedelta(seconds=10)
 MAINS_VOLTAGE: Final = 230.0  # for the estimated electricity without a meter
 ESTIMATE_TICK: Final = timedelta(seconds=60)
 # Subentry data that is bookkeeping, not configuration: no reload when it changes.

@@ -83,6 +83,25 @@ install "Airstage Direct for Fujitsu", and restart Home Assistant.
 Give the adapters a fixed IP address in your router; if one changes, update
 it in the indoor unit's settings.
 
+## Experimental: short-cycling
+
+Some units start and stop the compressor every few minutes in mild weather
+("short-cycling"), which wastes energy and wears the compressor. These
+system settings help to see it; they are off unless you set them, and may
+change:
+
+- **Power sensor for the outdoor unit**: a power meter (W or kW) for the airco
+  alone. Adds "Compressor starts" and "Compressor starts, last hour" to the
+  outdoor unit, with the last run and pause. The on and off levels can be
+  adjusted to your meter.
+- **Current temperature on the thermostat card**: the room temperature
+  (default) or the corrected intake, the value the unit regulates on (the
+  tested unit stopped when it reached setpoint + 1 °C). It is updated every
+  5 minutes.
+
+What was measured on a short-cycling unit, and what helped:
+[docs/measurements.md](docs/measurements.md).
+
 ## Good to know
 
 - **Monitor values update every 5 minutes.** Temperatures other than the room

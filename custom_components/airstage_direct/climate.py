@@ -28,6 +28,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AirstageConfigEntry
 from .api.codecs import FanSpeed, OpMode
+from .const import CLIMATE_TEMPERATURE_INTAKE, OPT_CLIMATE_TEMPERATURE
 from .coordinator import UnitCoordinator
 from .entity import AirstageEntity, run_writes
 
@@ -87,6 +88,14 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
 
     def __init__(self, coordinator: UnitCoordinator) -> None:
         super().__init__(coordinator, "climate")
+        # Experimental option: show the corrected intake (what the unit regulates
+        # on, refreshed every 5 minutes) instead of the room temperature.
+        source = coordinator.config_entry.options.get(OPT_CLIMATE_TEMPERATURE)
+        self._temperature_object = (
+            "iu_indoor_tmp_crct" if source == CLIMATE_TEMPERATURE_INTAKE else "iu_indoor_tmp"
+        )
+        if self._temperature_object != "iu_indoor_tmp":
+            self._names = (*self._names[:-1], self._temperature_object)
         self._attr_hvac_modes = [HVACMode.OFF, *MODE_TO_HA.values()]
         self._attr_fan_modes = list(FAN_TO_HA.values())
         device = coordinator.device
@@ -121,7 +130,7 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
         return None
 
     def _room_temperature(self) -> float | None:
-        value = self.device.value("iu_indoor_tmp")  # None/Missing while it reads 65535
+        value = self.device.value(self._temperature_object)  # None/Missing while 65535
         return value if isinstance(value, float) else None
 
     def _setpoint(self) -> float | None:

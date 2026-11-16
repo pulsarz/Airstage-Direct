@@ -96,6 +96,7 @@ class Stored:
 class Hold:
     started: float
     room_at_start: float
+    stopped: float  # when the compressor stopped (the pause began)
     pause_ended: float | None = None  # when the compressor started again
 
 
@@ -208,6 +209,9 @@ class UnitGuard:
         if self._ours("iu_set_tmp"):
             return
         value = self.setpoint()
+        if self.stored.restore_pending is not None:
+            self.stored.restore_pending = None  # the user set a setpoint: theirs wins
+            self.system.save()
         if self.holding and value != self.stored.hold_setpoint:
             _LOGGER.debug("%s: setpoint changed to %s by someone else: hold ends", self.name, value)
             self._end_hold("setpoint changed by the user", restore=False)
@@ -234,7 +238,7 @@ class UnitGuard:
             self.stored.restore_pending = None
             self.system.save()
             if self.setpoint() != pending:
-                self._write_setpoint(pending, "restore after an earlier failed write")
+                self._write_setpoint(pending, "restore after an earlier failed write", restore=True)
         floor = self.system.fan
         if floor is None:
             return
@@ -257,6 +261,8 @@ class UnitGuard:
         """The compressor stopped (confirmed after the shortest real pause)."""
         if not self.can_hold() or self.holding or self.stopped_reason or not self.heating:
             return
+        if self.stored.restore_pending is not None or "iu_set_tmp" in self._expect:
+            return  # the current setpoint may be the guard's own, not the user's
         compressor = self.system.compressor
         if compressor is not None and compressor.tracker.running:
             return  # already running again: too late for this pause
@@ -271,7 +277,7 @@ class UnitGuard:
             return
         self.stored.user_setpoint, self.stored.hold_setpoint = setpoint, target
         self.system.save()  # stored before the write
-        self.hold = Hold(started=self.system.clock(), room_at_start=room)
+        self.hold = Hold(started=self.system.clock(), room_at_start=room, stopped=at)
         _LOGGER.debug(
             "%s: compressor stopped with the room at %.2f C: setpoint %.1f -> %.1f",
             self.name, room, setpoint, target,
@@ -281,8 +287,12 @@ class UnitGuard:
     def compressor_started(self, at: float) -> None:
         if self.hold is not None and self.hold.pause_ended is None:
             self.hold.pause_ended = at
-        if self._last_release is not None and "run_started" not in self._last_release:
-            self._last_release["run_started"] = at
+        record = self._last_release
+        if record is not None and "run_started" not in record:
+            record["run_started"] = at
+            if record.get("pause_minutes") is None and "pause_began" in record:
+                record["pause_minutes"] = round((at - record.pop("pause_began")) / 60, 1)
+                self.system.save()
 
     def compressor_stopped_for_outcome(self, at: float) -> None:
         """Completes the last release's record with the length of the run after it."""
@@ -326,11 +336,10 @@ class UnitGuard:
                 "room_at_end": None if (room := self.room()) is None else round(room, 2),
                 "pause_minutes": None,
             }
-            compressor = self.system.compressor
-            if compressor is not None and compressor.tracker.last_pause is not None:
-                record["pause_minutes"] = round(compressor.tracker.last_pause.seconds / 60, 1)
-            if hold.pause_ended is None:
-                record["pause_minutes"] = None  # still paused at the end of the hold
+            if hold.pause_ended is not None:
+                record["pause_minutes"] = round((hold.pause_ended - hold.stopped) / 60, 1)
+            else:
+                record["pause_began"] = hold.stopped  # filled in at the next start
             self.stored.outcomes = [*self.stored.outcomes, record][-OUTCOMES_KEPT:]
             self._last_release = record
         self.hold = None
@@ -476,20 +485,29 @@ class CycleGuard:
         for unit in self.units.values():
             unit.evaluate()
 
-    async def async_stop(self) -> None:
+    def _detach(self) -> None:
+        """Stop reacting to the units, so restoring cannot trigger the guard again."""
         for undo in self._undo:
             undo()
         self._undo.clear()
+
+    async def async_stop(self) -> None:
+        self._detach()
         if self._stop_undo is not None:
             self._stop_undo()
             self._stop_undo = None
-        if self.enabled:
-            for unit in self.units.values():
-                await unit.async_restore("unload")
+        if not self.enabled and not any(
+            u.holding or u.stored.fan_set or u.stored.restore_pending is not None
+            for u in self.units.values()
+        ):
+            return  # never used: nothing to undo, nothing to write
+        for unit in self.units.values():
+            await unit.async_restore("unload")
         await self._async_save()
 
     async def _stop(self, _event: Event) -> None:
         self._stop_undo = None  # a once-listener removes itself
+        self._detach()
         for unit in self.units.values():
             await unit.async_restore("Home Assistant stopping")
         await self._async_save()

@@ -346,3 +346,116 @@ async def test_home_assistant_stopping_restores(
     await hass.async_block_till_done()
     assert writes(sim)[-1] == {"iu_set_tmp": "220"}
     assert not rig.unit_guard.holding
+
+
+async def test_stopping_with_the_fan_floor_puts_auto_back_for_good(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+
+    await setup(hass, sim, capabilities, GUARD_ON)  # fan Auto -> floor
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    await hass.async_block_till_done()
+    assert writes(sim) == [{"iu_fan_spd": "7"}, {"iu_fan_spd": "0"}]  # not floored again
+
+
+async def test_a_failed_restore_is_retried_and_a_user_change_wins(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    room(hass, 22.3)
+    rig = await full_setup(hass, sim, capabilities)
+    await rig.run_then_stop()
+    unit_guard = rig.unit_guard
+    sim.write_res = "unknown"  # the unit refuses the restore (say, while off)
+    sim.indoor["iu_onoff"] = "0"
+    unit_guard.device.apply({"iu_onoff": "0"})
+    await hass.async_block_till_done()
+    assert unit_guard.stored.restore_pending == 22.0
+    # A compressor stop now must not take the lowered 21.5 as the user's setpoint.
+    sim.write_res = "ack"
+    sim.indoor["iu_onoff"] = "1"
+    count = len(writes(sim))
+    unit_guard.device.apply({"iu_onoff": "1"})  # back on: the restore is retried
+    await hass.async_block_till_done()
+    assert writes(sim)[count:] == [{"iu_set_tmp": "220"}]
+    assert unit_guard.stored.restore_pending is None
+
+
+async def test_a_user_change_cancels_a_pending_restore(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    room(hass, 22.3)
+    rig = await full_setup(hass, sim, capabilities)
+    await rig.run_then_stop()
+    unit_guard = rig.unit_guard
+    sim.write_res = "unknown"
+    sim.indoor["iu_onoff"] = "0"
+    unit_guard.device.apply({"iu_onoff": "0"})
+    await hass.async_block_till_done()
+    assert unit_guard.stored.restore_pending == 22.0
+    sim.write_res = "ack"
+    unit_guard.device.apply({"iu_set_tmp": "240"})  # set with the remote while off
+    await hass.async_block_till_done()
+    assert unit_guard.stored.restore_pending is None
+    count = len(writes(sim))
+    sim.indoor["iu_onoff"] = "1"
+    unit_guard.device.apply({"iu_onoff": "1"})
+    await hass.async_block_till_done()
+    assert writes(sim)[count:] == []  # 24.0 stays
+
+
+async def test_the_pause_is_recorded_when_the_hold_ends_first(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    room(hass, 22.3)
+    rig = await full_setup(hass, sim, capabilities)
+    await rig.run_then_stop()  # stopped about 150 s in total
+    room(hass, 21.6)
+    await rig.tick()  # the hold ends before the compressor starts again
+    outcome = rig.unit_guard.stored.outcomes[-1]
+    assert outcome["pause_minutes"] is None
+    await rig.power(300, 600, 3)  # first reading 100 s in: started about 4 min after the stop
+    assert outcome["pause_minutes"] == pytest.approx(4.0, abs=0.3)
+    await rig.power(1200, 450, 4)
+    await rig.power(150, 10, 10)
+    assert outcome["next_run_minutes"] == pytest.approx(23.6, abs=0.5)
+
+
+async def test_room_readings_go_stale(
+    hass: HomeAssistant,
+    sim: Simulator,
+    capabilities: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(guard_module, "STALE_S", 300.0)
+    room(hass, 22.3)
+    entry = await setup(hass, sim, capabilities, GUARD_ON)
+    assert entry.runtime_data.guard is not None
+    (unit_guard,) = entry.runtime_data.guard.units.values()
+    reported = state_of(hass, ROOM).last_reported.timestamp()
+    entry.runtime_data.guard.clock = lambda: reported + 299
+    assert unit_guard.room() == 22.3
+    entry.runtime_data.guard.clock = lambda: reported + 301
+    assert unit_guard.room() is None
+
+
+async def test_the_settings_show_stored_values_inside_the_sections(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    entry = await setup(hass, sim, capabilities, FULL)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+    schema = data_schema.schema
+    suggested: dict[str, Any] = {}
+    for value in schema.values():
+        inner = getattr(value, "schema", None)
+        if inner is None:
+            continue
+        for k in inner.schema:
+            if (description := getattr(k, "description", None)) and "suggested_value" in (
+                description
+            ):
+                suggested[str(k)] = description["suggested_value"]
+    assert suggested[OPT_POWER_SENSOR] == POWER
+    assert suggested[OPT_GUARD] is True

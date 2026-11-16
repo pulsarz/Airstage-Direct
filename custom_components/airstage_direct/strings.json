@@ -397,8 +397,8 @@
             },
             "data_description": {
               "power_sensor": "A power meter for the airco alone. Adds compressor start counts to the outdoor unit, to spot short-cycling.",
-              "compressor_on_w": "Default 250 W. Above the off level, below the compressor's lowest running power.",
-              "compressor_off_w": "Default 150 W. Above what the meter reads while the compressor is off.",
+              "compressor_on_w": "Default 120 W. Above the off level, below the compressor's lowest running power (cooling can run below 200 W).",
+              "compressor_off_w": "Default 80 W. Above what the meter reads while the compressor is off.",
               "climate_temperature": "The room temperature (default) or the corrected intake: the value the unit regulates on, updated every 5 minutes."
             }
           },

@@ -20,8 +20,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final, Literal
 
-DEFAULT_ON_W: Final = 250.0
-DEFAULT_OFF_W: Final = 150.0
+DEFAULT_ON_W: Final = 120.0  # cooling can run below 200 W
+DEFAULT_OFF_W: Final = 80.0  # above standby, incl. a crankcase heater
 ON_S: Final = 10.0
 OFF_S: Final = 20.0
 MIN_PAUSE_S: Final = 120.0

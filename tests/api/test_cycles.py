@@ -69,10 +69,10 @@ def test_blips_and_the_band_between_the_levels() -> None:
     t.update(now, RUN)  # one high reading: not a start
     now = feed(t, now + 3, now + 60, STANDBY)
     assert t.starts == 0
-    now = feed(t, now, now + 300, 200)  # between the levels: no change
+    now = feed(t, now, now + 300, 100)  # between the levels: no change
     assert t.running is False
     now = feed(t, now, now + 300, RUN)
-    now = feed(t, now, now + 300, 200)  # back into the band: still running
+    now = feed(t, now, now + 300, 100)  # back into the band: still running
     assert t.running is True
     assert t.starts == 1
 
@@ -118,3 +118,11 @@ def test_callbacks() -> None:
 def test_levels_must_make_sense() -> None:
     with pytest.raises(ValueError, match="below"):
         CompressorTracker(on_w=100, off_w=150)
+
+
+def test_a_low_power_cooling_run_counts() -> None:
+    t = CompressorTracker()
+    now = feed(t, 0, 60, 25.0)
+    now = feed(t, now, now + 1200, 170.0)  # cooling near its minimum
+    assert t.running is True
+    assert t.starts == 1

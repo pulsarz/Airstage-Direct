@@ -6,6 +6,32 @@ indoor units, AP-WH3E-B adapters. [protocol.md](protocol.md) summarises what
 they mean. Raw output is not published; MAC, serial, IP addresses and network
 name are left out.
 
+## 2026-11-16, 23:30–00:00: a stop with the room below the setpoint, Downstairs
+
+Fan Low-medium, setpoint 22.0 °C, an early version of the guard (it lowered
+the setpoint after a stop). Power meter, the owner's room thermometer
+(a reading every 10-60 s) and read-only GetParam reads every 20 s.
+
+- **The room stayed at 21.73–21.87 °C the whole half hour**, below the
+  setpoint, and still the unit stopped.
+- 23:30–23:41 the compressor ran steadily at 490–590 W. At 23:41:40 it sped
+  up by itself to 870 W for about three minutes, slowed down, and stopped at
+  23:46:20 with the corrected intake at 23.25 °C (setpoint + 1) and the coil
+  at 42 °C (37.5 °C in steady running). Why it sped up is not known; an
+  inverter's periodic oil-return run would look like this.
+- While the compressor is off in heating, the indoor fan idles at 540–550
+  rpm whatever the setting; during the first minutes after a restart it is
+  held at about 680 rpm while the coil warms up.
+- A few minutes after the stop the corrected intake read 20.75 °C, a degree
+  below the room, and the unit restarted (23:49:55) at the end of the usual
+  3.6-minute pause, hard (up to 1485 W). With the setpoint lowered by the
+  guard to 21.5 °C (stop point 22.5), that run lasted only 3.4 minutes. The
+  next restart came after another 3.4 minutes.
+- So the unit's own sensor swung from 1.5 °C above the room to 1 °C below it
+  within minutes while the room did not move. Lowering the setpoint after a
+  stop lowers the stop point too and makes this worse; raising it while the
+  room is below the setpoint gives the sensor room for such spikes.
+
 ## 2026-11-16: short-cycling in heating, Downstairs (ASEH14KJCAL) alone
 
 Three runs on one day, the other indoor units off, setpoint 22.0 °C in heat.

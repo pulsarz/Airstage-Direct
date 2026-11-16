@@ -106,21 +106,25 @@ change:
     Auto ran the fan so slowly that the unit measured its own warm air and
     stopped early. Any other fan choice is left alone; Auto comes back when
     the guard is switched off or the unit stops heating.
-  - *Delay restarts:* needs the power sensor and a room temperature sensor
-    in each indoor unit's settings. After the compressor stops while the room
-    is at or above your setpoint, the guard lowers that unit's setpoint a little (0.5 °C by
-    default) until the room has cooled 0.3 °C below your setpoint, then puts
-    it back. The thermostat card keeps showing your setpoint. A cold room is
-    never held.
+  - *Steer by a room sensor:* needs a room temperature sensor in the indoor
+    unit's settings. While the room is below your setpoint, the guard raises
+    the unit's own setpoint a little (0.5 °C by default): the unit's built-in
+    sensor reads its own warm air and can stop the compressor while the room
+    is still cold. Once the room reaches your setpoint, the unit's setpoint
+    goes back. Changes are at least 5 minutes apart, and the thermostat card
+    keeps showing your setpoint.
   - *Fail-safe:* your setpoint is stored before the guard changes it and put
-    back on every way out: the room cooled, the room sensor stopped
-    reporting, 45 minutes passed, the unit was switched off or out of heat,
-    the guard was switched off, or Home Assistant restarted. Any setpoint or
-    fan change you make (app, remote or Home Assistant) wins at once. If the
-    guard has to write more than 20 times in an hour for one unit, it stops
-    for that unit.
-  - The thermostat entity shows what it is doing (`guard`, and after each
-    delay `guard_last_hold` with how long it held and how the room moved).
+    back on every way out: the room reached it, the room sensor stopped
+    reporting, the unit was switched off or out of heat (a switched-off unit
+    refuses changes, so then it happens when the unit is switched on), the
+    guard was switched off, or Home Assistant restarted. Any setpoint or fan
+    change you make (app, remote or Home Assistant) wins at once. If the guard
+    has to write more than 20 times in an hour for one unit, it stops for
+    that unit.
+  - The thermostat entity shows what it is doing (`guard`, the unit's real
+    setpoint while raised, and `guard_last_raise` with how long it lasted,
+    how the room moved and, with a power sensor, how often the compressor
+    started).
   - Switch off any automation of your own that sets the fan, and try it on
     one unit first.
 

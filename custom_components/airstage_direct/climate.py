@@ -143,7 +143,7 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
     def _setpoint(self) -> float | None:
         unit_guard = self._unit_guard()
         if unit_guard is not None and unit_guard.stored.user_setpoint is not None:
-            return unit_guard.stored.user_setpoint  # the user's, not the guard's hold
+            return unit_guard.stored.user_setpoint  # the user's, not the guard's raise
         value = self.device.value("iu_set_tmp")
         return value if isinstance(value, float) else None
 
@@ -233,8 +233,8 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
                 if self.device.value("iu_onoff") is not True:
                     writes.append(self.device.set_power(True))
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is not None:
-            if (unit_guard := self._unit_guard()) is not None and unit_guard.holding:
-                unit_guard.end_hold_for_user()  # the user's new setpoint wins
+            if (unit_guard := self._unit_guard()) is not None and unit_guard.raised:
+                unit_guard.end_raise_for_user()  # the user's new setpoint wins
             writes.append(self.device.set_setpoint(float(temperature)))
         await self._run(*writes)
 

@@ -404,21 +404,19 @@
           },
           "short_cycle_guard": {
             "name": "Experimental: short-cycle guard",
-            "description": "Steers units that heat to start and stop the compressor less often. Off by default. If you use your own automation for the fan, switch it off first.",
+            "description": "Helps units that heat start and stop the compressor less often. Off by default. If you use your own automation for the fan or setpoint, switch it off first.",
             "data": {
               "guard": "Short-cycle guard",
               "guard_fan": "Fan while heating, instead of Auto",
-              "guard_hold": "Delay restarts while the room is warm",
-              "guard_hold_offset": "Lower the setpoint by",
-              "guard_band": "Restart when the room is this far below the setpoint",
-              "guard_max_hold": "Longest delay"
+              "guard_steer": "Steer by the room sensor",
+              "guard_raise": "Raise the unit's setpoint by",
+              "guard_band": "When the room is this far below the setpoint"
             },
             "data_description": {
               "guard_fan": "While a unit heats with its fan on Auto, use this speed instead. Low-medium kept a short-cycling unit running steadily. Other fan choices are left alone.",
-              "guard_hold": "Needs the power sensor above and a room temperature sensor in the indoor unit's settings. After the compressor stops while the room is at or above your setpoint, the unit's setpoint is lowered until the room has cooled, then put back.",
-              "guard_hold_offset": "Default 0.5 °C. The thermostat card keeps showing your setpoint.",
-              "guard_band": "Default 0.3 °C.",
-              "guard_max_hold": "Default 45 minutes. After this the setpoint goes back regardless."
+              "guard_steer": "Needs a room temperature sensor in the indoor unit's settings. While the room is below your setpoint, the unit's own setpoint is raised a little, so the unit does not stop early on its own (too warm) sensor; once the room reaches your setpoint, it goes back. The thermostat card keeps showing your setpoint.",
+              "guard_raise": "Default 0.5 °C.",
+              "guard_band": "Default 0.1 °C. Changes are at least 5 minutes apart."
             }
           }
         }

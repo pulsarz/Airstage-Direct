@@ -89,6 +89,7 @@ class Stored:
     hold_setpoint: float | None = None  # what the guard wrote
     fan_set: bool = False  # the guard set the fan (Auto goes back when it stops)
     restore_pending: float | None = None  # a setpoint to put back when the unit allows
+    fan_floor: int | None = None  # the speed the guard set (to know it is still ours)
     outcomes: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -243,7 +244,7 @@ class UnitGuard:
         if floor is None:
             return
         if self.heating and fan is FanSpeed.AUTO and "iu_fan_spd" not in self._expect:
-            self.stored.fan_set = True
+            self.stored.fan_set, self.stored.fan_floor = True, int(floor)
             self.system.save()
             self._write_fan(floor, "fan floor")
         elif (
@@ -347,7 +348,12 @@ class UnitGuard:
         self.system.save()
         _LOGGER.debug("%s: hold ends (%s)", self.name, reason)
         if restore and user is not None and self.setpoint() != user:
-            self._write_setpoint(user, f"hold ends: {reason}", restore=True)
+            if self.device.value("iu_onoff") is False:
+                # A switched-off unit refuses setpoint writes: put it back at power-on.
+                self.stored.restore_pending = user
+                self.system.save()
+            else:
+                self._write_setpoint(user, f"hold ends: {reason}", restore=True)
 
     def _lowest(self) -> float:
         caps = self.device.capabilities
@@ -414,12 +420,19 @@ class UnitGuard:
         self.hold = None
         self.stored.user_setpoint = self.stored.hold_setpoint = None
         self.stored.restore_pending = None
+        if user is not None and self.setpoint() == user:
+            user = None
+        if self.device.value("iu_onoff") is False:
+            # A switched-off unit refuses writes: both go back when it is switched on.
+            self.stored.restore_pending = user
+            return
         try:
-            if user is not None and self.setpoint() != user:
+            if user is not None:
                 await self.device.set_setpoint(user)
-            if self.stored.fan_set and self.device.value("iu_fan_spd") == self.system.fan:
+            fan = self.device.value("iu_fan_spd")
+            if self.stored.fan_set and fan is not None and fan == self.stored.fan_floor:
                 await self.device.set_fan_speed(FanSpeed.AUTO)
-            self.stored.fan_set = False
+            self.stored.fan_set, self.stored.fan_floor = False, None
         except (AirstageError, ValueError) as err:
             _LOGGER.warning("%s: could not undo the guard's changes (%s): %s",
                             self.name, reason, err)  # fmt: skip
@@ -475,6 +488,11 @@ class CycleGuard:
                 await unit.async_restore("start-up")
         await self._async_save()
         if not self.enabled:
+            # Switched off with something still to undo on a unit that was off:
+            # undo it when that unit is switched on.
+            for unit in self.units.values():
+                if unit.stored.restore_pending is not None or unit.stored.fan_set:
+                    self._undo.append(unit.device.add_listener(self._retry_listener(unit)))
             return
         for unit in self.units.values():
             self._undo.append(unit.device.add_listener(unit.changed))
@@ -484,6 +502,19 @@ class CycleGuard:
         self._stop_undo = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._stop)
         for unit in self.units.values():
             unit.evaluate()
+
+    def _retry_listener(self, unit: UnitGuard) -> Callable[[set[str]], None]:
+        @callback
+        def changed(names: set[str]) -> None:
+            pending = unit.stored.restore_pending is not None or unit.stored.fan_set
+            if "iu_onoff" in names and unit.device.value("iu_onoff") is True and pending:
+                self.entry_task(self._retry(unit), f"{DOMAIN} guard {unit.name} undo")
+
+        return changed
+
+    async def _retry(self, unit: UnitGuard) -> None:
+        await unit.async_restore("switched on")
+        await self._async_save()
 
     def _detach(self) -> None:
         """Stop reacting to the units, so restoring cannot trigger the guard again."""

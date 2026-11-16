@@ -43,9 +43,11 @@ def state_of(hass: HomeAssistant, entity_id: str) -> State:
 
 
 @pytest.fixture(autouse=True)
-def _never_stale(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test clocks run ahead of the room sensor's real timestamps."""
+def _never_stale(monkeypatch: pytest.MonkeyPatch, sim: Simulator) -> None:
+    """Test clocks run ahead of the room sensor's real timestamps; and like the
+    real units, a switched-off unit refuses setpoint and fan writes."""
     monkeypatch.setattr(guard_module, "STALE_S", 1e9)
+    sim.refuse_when_off = True
 
 
 async def setup(
@@ -269,8 +271,14 @@ async def test_switching_the_unit_off_ends_the_hold(
     sim.indoor["iu_onoff"] = "0"
     rig.unit_guard.device.apply({"iu_onoff": "0"})
     await hass.async_block_till_done()
-    assert writes(sim)[-1] == {"iu_set_tmp": "220"}  # restored, so it comes back right
+    assert writes(sim) == [{"iu_set_tmp": "215"}]  # an off unit refuses: not even tried
     assert not rig.unit_guard.holding
+    assert rig.unit_guard.stored.restore_pending == 22.0
+    sim.indoor["iu_onoff"] = "1"
+    rig.unit_guard.device.apply({"iu_onoff": "1"})  # switched on: put back at once
+    await hass.async_block_till_done()
+    assert writes(sim)[-1] == {"iu_set_tmp": "220"}
+    assert rig.unit_guard.stored.restore_pending is None
 
 
 async def test_the_longest_delay(
@@ -459,3 +467,29 @@ async def test_the_settings_show_stored_values_inside_the_sections(
                 suggested[str(k)] = description["suggested_value"]
     assert suggested[OPT_POWER_SENSOR] == POWER
     assert suggested[OPT_GUARD] is True
+
+
+async def test_switching_the_guard_off_while_the_unit_is_off(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    """The undo waits for the unit to be switched on, even with the guard off."""
+    room(hass, 22.3)
+    hass.states.async_set(POWER, "10", {"unit_of_measurement": "W"})
+    entry = await setup(hass, sim, capabilities, FULL)  # fan Auto -> floor
+    rig = Rig(hass, entry)
+    await rig.run_then_stop()
+    assert writes(sim) == [{"iu_fan_spd": "7"}, {"iu_set_tmp": "215"}]
+    sim.indoor["iu_onoff"] = "0"
+    rig.unit_guard.device.apply({"iu_onoff": "0"})
+    await hass.async_block_till_done()
+    hass.config_entries.async_update_entry(entry, options={OPT_POWER_SENSOR: POWER})
+    await hass.async_block_till_done()  # reloaded with the guard off
+    assert len(writes(sim)) == 2  # nothing sent to the switched-off unit
+    guard = entry.runtime_data.guard
+    assert guard is not None
+    assert not guard.enabled
+    (unit,) = entry.runtime_data.units.values()
+    sim.indoor["iu_onoff"] = "1"
+    unit.device.apply({"iu_onoff": "1"})
+    await hass.async_block_till_done()
+    assert writes(sim)[2:] == [{"iu_set_tmp": "220"}, {"iu_fan_spd": "0"}]

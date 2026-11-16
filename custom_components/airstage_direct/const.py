@@ -50,6 +50,21 @@ OPT_CLIMATE_TEMPERATURE: Final = "climate_temperature"
 CLIMATE_TEMPERATURE_ROOM: Final = "room"  # iu_indoor_tmp, the default
 CLIMATE_TEMPERATURE_INTAKE: Final = "corrected_intake"  # iu_indoor_tmp_crct
 COMPRESSOR_TICK: Final = timedelta(seconds=10)
+# Experimental: the short-cycle guard (guard.py).
+OPT_GUARD: Final = "guard"
+OPT_GUARD_FAN: Final = "guard_fan"  # a fan key from guard.FAN_OPTIONS, or GUARD_FAN_LEAVE
+OPT_GUARD_HOLD: Final = "guard_hold"
+OPT_GUARD_HOLD_OFFSET: Final = "guard_hold_offset"
+OPT_GUARD_BAND: Final = "guard_band"
+OPT_GUARD_MAX_HOLD: Final = "guard_max_hold"  # minutes
+GUARD_FAN_LEAVE: Final = "leave"
+GUARD_FAN_OPTIONS: Final = ("quiet", "low", "low_medium", "medium", "medium_high", "high")
+GUARD_DEFAULT_FAN: Final = "low_medium"
+GUARD_DEFAULT_HOLD_OFFSET: Final = 0.5  # deg C below the user's setpoint while holding
+GUARD_DEFAULT_BAND: Final = 0.3  # deg C below the setpoint at which a hold ends
+GUARD_DEFAULT_MAX_HOLD: Final = 45.0  # minutes
+GUARD_TICK: Final = timedelta(seconds=30)
+CONF_ROOM_SENSOR: Final = "room_sensor"  # per indoor unit, for the guard
 MAINS_VOLTAGE: Final = 230.0  # for the estimated electricity without a meter
 ESTIMATE_TICK: Final = timedelta(seconds=60)
 # Subentry data that is bookkeeping, not configuration: no reload when it changes.

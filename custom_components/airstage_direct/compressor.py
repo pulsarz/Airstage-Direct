@@ -46,6 +46,9 @@ class CompressorMonitor:
         )
         self.clock: Callable[[], float] = time.time  # tests replace it
         self._listeners: list[Callable[[], None]] = []
+        self._event_listeners: list[Callable[[str, float], None]] = []
+        self.tracker.on_start = lambda at: self._event("start", at)
+        self.tracker.on_stop = lambda at: self._event("stop", at)
         self._undo: list[Callable[[], None]] = []
         self._shown: tuple[Any, ...] | None = None
 
@@ -68,6 +71,15 @@ class CompressorMonitor:
     def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         self._listeners.append(listener)
         return lambda: self._listeners.remove(listener)
+
+    def add_event_listener(self, listener: Callable[[str, float], None]) -> Callable[[], None]:
+        """Called with ("start" or "stop", when) as the compressor starts and stops."""
+        self._event_listeners.append(listener)
+        return lambda: self._event_listeners.remove(listener)
+
+    def _event(self, kind: str, at: float) -> None:
+        for listener in list(self._event_listeners):
+            listener(kind, at)
 
     def starts_last_hour(self) -> int:
         return self.tracker.starts_last_hour(self.clock())

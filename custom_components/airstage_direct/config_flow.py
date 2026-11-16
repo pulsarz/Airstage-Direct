@@ -20,6 +20,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.selector import (
@@ -55,7 +56,14 @@ from .const import (
     CONF_MODEL,
     CONF_PORT,
     CONF_RATED_AIRFLOW,
+    CONF_ROOM_SENSOR,
     DOMAIN,
+    GUARD_DEFAULT_BAND,
+    GUARD_DEFAULT_FAN,
+    GUARD_DEFAULT_HOLD_OFFSET,
+    GUARD_DEFAULT_MAX_HOLD,
+    GUARD_FAN_LEAVE,
+    GUARD_FAN_OPTIONS,
     MODEL_CUSTOM,
     MODEL_NONE,
     OPT_AIRFLOW_SCALE,
@@ -64,6 +72,12 @@ from .const import (
     OPT_COMPRESSOR_ON_W,
     OPT_EFFECTIVENESS,
     OPT_ESTIMATES,
+    OPT_GUARD,
+    OPT_GUARD_BAND,
+    OPT_GUARD_FAN,
+    OPT_GUARD_HOLD,
+    OPT_GUARD_HOLD_OFFSET,
+    OPT_GUARD_MAX_HOLD,
     OPT_METER,
     OPT_POWER_SENSOR,
     OPT_PREFERRED_UNIT,
@@ -419,6 +433,7 @@ UNIT_SETTING_KEYS = (
     CONF_CURVE_INTERCEPT,
     CONF_RATED_AIRFLOW,
     CONF_HUMIDITY_ENTITY,
+    CONF_ROOM_SENSOR,
 )
 
 
@@ -465,6 +480,9 @@ def unit_settings_schema() -> probatio.Schema:
             probatio.Optional(CONF_HUMIDITY_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain="sensor", device_class="humidity")
             ),
+            probatio.Optional(CONF_ROOM_SENSOR): EntitySelector(
+                EntitySelectorConfig(domain="sensor", device_class="temperature")
+            ),
         }
     )
 
@@ -482,25 +500,114 @@ def unit_settings(user_input: dict[str, Any]) -> dict[str, Any] | None:
             settings[CONF_RATED_AIRFLOW] = float(rated)
     if humidity := user_input.get(CONF_HUMIDITY_ENTITY):
         settings[CONF_HUMIDITY_ENTITY] = humidity
+    if room := user_input.get(CONF_ROOM_SENSOR):
+        settings[CONF_ROOM_SENSOR] = room
     return settings
 
 
+SECTION_COMPRESSOR = "compressor"  # experimental: power sensor and display
+SECTION_GUARD = "short_cycle_guard"  # experimental: the guard
+SECTIONS: dict[str, tuple[str, ...]] = {
+    SECTION_COMPRESSOR: (
+        OPT_POWER_SENSOR,
+        OPT_COMPRESSOR_ON_W,
+        OPT_COMPRESSOR_OFF_W,
+        OPT_CLIMATE_TEMPERATURE,
+    ),
+    SECTION_GUARD: (
+        OPT_GUARD,
+        OPT_GUARD_FAN,
+        OPT_GUARD_HOLD,
+        OPT_GUARD_HOLD_OFFSET,
+        OPT_GUARD_BAND,
+        OPT_GUARD_MAX_HOLD,
+    ),
+}
+
+
+def _number(lo: float, hi: float, step: float, unit: str) -> NumberSelector:
+    return NumberSelector(
+        NumberSelectorConfig(
+            min=lo, max=hi, step=step, unit_of_measurement=unit, mode=NumberSelectorMode.BOX
+        )
+    )
+
+
+def _flatten(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Options are stored flat; the form groups the experimental ones in sections."""
+    flat = {k: v for k, v in user_input.items() if k not in SECTIONS}
+    for key in SECTIONS:
+        flat.update(user_input.get(key) or {})
+    return flat
+
+
+def _grouped(options: dict[str, Any]) -> dict[str, Any]:
+    grouped = {k: v for k, v in options.items() if not any(k in ks for ks in SECTIONS.values())}
+    for section_key, keys in SECTIONS.items():
+        grouped[section_key] = {k: options[k] for k in keys if k in options}
+    return grouped
+
+
 class AirstageOptionsFlow(OptionsFlow):
-    """System settings: estimates, the electricity meter, the outdoor source, push."""
+    """System settings: estimates, the electricity meter, the outdoor source, push,
+    and (experimental, folded away) compressor starts and the short-cycle guard."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            on_w = user_input.get(OPT_COMPRESSOR_ON_W, DEFAULT_ON_W)
-            off_w = user_input.get(OPT_COMPRESSOR_OFF_W, DEFAULT_OFF_W)
+            flat = _flatten(user_input)
+            on_w = flat.get(OPT_COMPRESSOR_ON_W, DEFAULT_ON_W)
+            off_w = flat.get(OPT_COMPRESSOR_OFF_W, DEFAULT_OFF_W)
             if off_w >= on_w:
                 errors["base"] = "compressor_levels"
             else:
-                return self.async_create_entry(data=user_input)
+                return self.async_create_entry(data=flat)
         units = [
             SelectOptionDict(value=sub.subentry_id, label=sub.title)
             for sub in self.config_entry.get_subentries_of_type(SUBENTRY_INDOOR_UNIT)
         ]
+        compressor = probatio.Schema(
+            {
+                probatio.Optional(OPT_POWER_SENSOR): EntitySelector(
+                    EntitySelectorConfig(domain="sensor", device_class="power")
+                ),
+                probatio.Optional(OPT_COMPRESSOR_ON_W, default=DEFAULT_ON_W): _number(
+                    20, 3000, 10, "W"
+                ),
+                probatio.Optional(OPT_COMPRESSOR_OFF_W, default=DEFAULT_OFF_W): _number(
+                    10, 2000, 10, "W"
+                ),
+                probatio.Optional(
+                    OPT_CLIMATE_TEMPERATURE, default=CLIMATE_TEMPERATURE_ROOM
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[CLIMATE_TEMPERATURE_ROOM, CLIMATE_TEMPERATURE_INTAKE],
+                        translation_key=OPT_CLIMATE_TEMPERATURE,
+                    )
+                ),
+            }
+        )
+        guard = probatio.Schema(
+            {
+                probatio.Optional(OPT_GUARD, default=False): BooleanSelector(),
+                probatio.Optional(OPT_GUARD_FAN, default=GUARD_DEFAULT_FAN): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[GUARD_FAN_LEAVE, *GUARD_FAN_OPTIONS],
+                        translation_key=OPT_GUARD_FAN,
+                    )
+                ),
+                probatio.Optional(OPT_GUARD_HOLD, default=True): BooleanSelector(),
+                probatio.Optional(
+                    OPT_GUARD_HOLD_OFFSET, default=GUARD_DEFAULT_HOLD_OFFSET
+                ): _number(0.5, 2.0, 0.5, "°C"),
+                probatio.Optional(OPT_GUARD_BAND, default=GUARD_DEFAULT_BAND): _number(
+                    0.1, 1.0, 0.1, "°C"
+                ),
+                probatio.Optional(OPT_GUARD_MAX_HOLD, default=GUARD_DEFAULT_MAX_HOLD): _number(
+                    10, 120, 5, "min"
+                ),
+            }
+        )
         schema = probatio.Schema(
             {
                 probatio.Optional(OPT_ESTIMATES, default=True): BooleanSelector(),
@@ -517,37 +624,14 @@ class AirstageOptionsFlow(OptionsFlow):
                     SelectSelectorConfig(options=units)
                 ),
                 probatio.Optional(OPT_PUSH, default=True): BooleanSelector(),
-                # Experimental (phase 7): compressor starts from a power sensor,
-                # and the temperature the thermostat card shows.
-                probatio.Optional(OPT_POWER_SENSOR): EntitySelector(
-                    EntitySelectorConfig(domain="sensor", device_class="power")
-                ),
-                probatio.Optional(OPT_COMPRESSOR_ON_W, default=DEFAULT_ON_W): NumberSelector(
-                    NumberSelectorConfig(
-                        min=20, max=3000, step=10, unit_of_measurement="W",
-                        mode=NumberSelectorMode.BOX,
-                    )
-                ),
-                probatio.Optional(OPT_COMPRESSOR_OFF_W, default=DEFAULT_OFF_W): NumberSelector(
-                    NumberSelectorConfig(
-                        min=10, max=2000, step=10, unit_of_measurement="W",
-                        mode=NumberSelectorMode.BOX,
-                    )
-                ),
-                probatio.Optional(
-                    OPT_CLIMATE_TEMPERATURE, default=CLIMATE_TEMPERATURE_ROOM
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[CLIMATE_TEMPERATURE_ROOM, CLIMATE_TEMPERATURE_INTAKE],
-                        translation_key=OPT_CLIMATE_TEMPERATURE,
-                    )
-                ),
+                probatio.Optional(SECTION_COMPRESSOR): section(compressor, {"collapsed": True}),
+                probatio.Optional(SECTION_GUARD): section(guard, {"collapsed": True}),
             }
         )  # fmt: skip
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                schema, user_input or self.config_entry.options
+                schema, user_input or _grouped(dict(self.config_entry.options))
             ),
             errors=errors,
         )

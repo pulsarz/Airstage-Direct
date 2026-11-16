@@ -20,6 +20,7 @@ from .const import OPT_ESTIMATES, OPT_PREFERRED_UNIT, STORED_ONLY, SUBENTRY_INDO
 from .coordinator import UnitCoordinator
 from .estimate_sensors import estimate_entity_ids, is_estimate_unique_id
 from .estimation import SystemEstimates
+from .guard import CycleGuard
 from .hub import async_get_hub
 from .outdoor import OutdoorSource
 
@@ -40,6 +41,7 @@ class AirstageRuntime:
     estimates: SystemEstimates | None
     layout: str
     compressor: CompressorMonitor | None = None  # experimental: needs a power sensor
+    guard: CycleGuard | None = None  # experimental: the short-cycle guard
 
 
 type AirstageConfigEntry = ConfigEntry[AirstageRuntime]
@@ -74,7 +76,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: AirstageConfigEntry) -> 
     )
     options = dict(entry.options)
     compressor = CompressorMonitor(hass, options) if CompressorMonitor.configured(options) else None
-    entry.runtime_data = AirstageRuntime(units, outdoor, estimates, _layout(entry), compressor)
+    guard = CycleGuard(
+        hass,
+        entry.entry_id,
+        units,
+        compressor,
+        options,
+        lambda coro, name: entry.async_create_task(hass, coro, name),
+    )
+    entry.runtime_data = AirstageRuntime(
+        units, outdoor, estimates, _layout(entry), compressor, guard
+    )
     # Different adapters: starting them in parallel keeps one request per adapter.
     await asyncio.gather(*(unit.async_start() for unit in units.values()))
     outdoor.start()
@@ -89,6 +101,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AirstageConfigEntry) -> 
     # One monitor read now, so monitor values (and the estimates) need not wait
     # for the first scheduled read after learning; then once per refresh.
     await asyncio.gather(*(unit.async_read_monitor_now() for unit in units.values()))
+    # The guard starts last, with the units' values known. With the guard off
+    # it only undoes what an earlier run may have left (normally nothing).
+    await guard.async_start()
     _remove_stale_entities(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
@@ -122,6 +137,8 @@ async def _async_update_listener(hass: HomeAssistant, entry: AirstageConfigEntry
 
 async def async_unload_entry(hass: HomeAssistant, entry: AirstageConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if (guard := entry.runtime_data.guard) is not None:
+        await guard.async_stop()  # undoes its setpoint and fan changes
     entry.runtime_data.outdoor.stop()
     if (compressor := entry.runtime_data.compressor) is not None:
         compressor.stop()

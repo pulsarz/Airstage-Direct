@@ -31,6 +31,7 @@ from .api.codecs import FanSpeed, OpMode
 from .const import CLIMATE_TEMPERATURE_INTAKE, OPT_CLIMATE_TEMPERATURE
 from .coordinator import UnitCoordinator
 from .entity import AirstageEntity, run_writes
+from .guard import UnitGuard
 
 PARALLEL_UPDATES = 0  # writes are serialised per adapter by the transport
 
@@ -133,9 +134,29 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
         value = self.device.value(self._temperature_object)  # None/Missing while 65535
         return value if isinstance(value, float) else None
 
+    def _unit_guard(self) -> UnitGuard | None:
+        guard = self.coordinator.config_entry.runtime_data.guard
+        if guard is None or not guard.enabled:
+            return None
+        return guard.units.get(self.coordinator.subentry.subentry_id)
+
     def _setpoint(self) -> float | None:
+        unit_guard = self._unit_guard()
+        if unit_guard is not None and unit_guard.stored.user_setpoint is not None:
+            return unit_guard.stored.user_setpoint  # the user's, not the guard's hold
         value = self.device.value("iu_set_tmp")
         return value if isinstance(value, float) else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        unit_guard = self._unit_guard()
+        return unit_guard.attributes() if unit_guard is not None else None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        guard = self.coordinator.config_entry.runtime_data.guard
+        if guard is not None and guard.enabled:
+            self.async_on_remove(guard.add_listener(self.async_write_ha_state))
 
     def _limits(self) -> tuple[float, float]:
         caps = self.device.capabilities
@@ -212,6 +233,8 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
                 if self.device.value("iu_onoff") is not True:
                     writes.append(self.device.set_power(True))
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is not None:
+            if (unit_guard := self._unit_guard()) is not None and unit_guard.holding:
+                unit_guard.end_hold_for_user()  # the user's new setpoint wins
             writes.append(self.device.set_setpoint(float(temperature)))
         await self._run(*writes)
 

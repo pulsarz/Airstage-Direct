@@ -84,10 +84,12 @@
             "curve_slope": "Custom fan curve: m³/h per rpm",
             "curve_intercept": "Custom fan curve: m³/h at 0 rpm",
             "rated_airflow": "Custom model: rated airflow at High (m³/h)",
-            "humidity_entity": "Room humidity sensor"
+            "humidity_entity": "Room humidity sensor",
+            "room_sensor": "Room temperature sensor (for the short-cycle guard)"
           },
           "data_description": {
-            "rated_airflow": "From the same manual table as the fan curve. Lets the coil effectiveness rise at lower fan speeds; without it, it stays fixed."
+            "rated_airflow": "From the same manual table as the fan curve. Lets the coil effectiveness rise at lower fan speeds; without it, it stays fixed.",
+            "room_sensor": "Optional, experimental. A thermometer in the room, away from the airco and the sun, that reports at least every minute."
           }
         }
       },
@@ -354,6 +356,17 @@
         "room": "Room temperature (default)",
         "corrected_intake": "Corrected intake (what the unit regulates on)"
       }
+    },
+    "guard_fan": {
+      "options": {
+        "leave": "Leave the fan alone",
+        "quiet": "Quiet",
+        "low": "Low",
+        "low_medium": "Low-medium",
+        "medium": "Medium",
+        "medium_high": "Medium-high",
+        "high": "High"
+      }
     }
   },
   "options": {
@@ -366,19 +379,48 @@
           "airflow_scale": "Airflow scale",
           "electricity_meter": "Electricity meter for the airco (kWh)",
           "preferred_outdoor_unit": "Preferred unit for outdoor values",
-          "push": "Push updates from the adapters",
-          "power_sensor": "Experimental: power sensor for the outdoor unit (W)",
-          "compressor_on_w": "Experimental: compressor running above",
-          "compressor_off_w": "Experimental: compressor stopped below",
-          "climate_temperature": "Experimental: current temperature on the thermostat card"
+          "push": "Push updates from the adapters"
         },
         "data_description": {
           "electricity_meter": "Without one, electricity is estimated from the outdoor unit's current x 230 V.",
-          "coil_effectiveness": "Default 0.85, at the High fan airflow. Lower fan speeds get a higher value (about 0.90 at Medium, 0.93 at Quiet). Scales every heat estimate.",
-          "power_sensor": "A power meter for the airco alone. Adds compressor start counts to the outdoor unit, to spot short-cycling. Leave empty to keep things as they are.",
-          "compressor_on_w": "Default 250 W. Must be above the off level and below the compressor's lowest running power.",
-          "compressor_off_w": "Default 150 W. Must be above the meter's reading while the compressor is off.",
-          "climate_temperature": "The room temperature (default) or the corrected intake: the value the unit actually regulates on, updated every 5 minutes."
+          "coil_effectiveness": "Default 0.85, at the High fan airflow. Lower fan speeds get a higher value (about 0.90 at Medium, 0.93 at Quiet). Scales every heat estimate."
+        },
+        "sections": {
+          "compressor": {
+            "name": "Experimental: compressor starts",
+            "description": "Optional. Leave empty to keep everything as it is.",
+            "data": {
+              "power_sensor": "Power sensor for the outdoor unit (W)",
+              "compressor_on_w": "Compressor running above",
+              "compressor_off_w": "Compressor stopped below",
+              "climate_temperature": "Current temperature on the thermostat card"
+            },
+            "data_description": {
+              "power_sensor": "A power meter for the airco alone. Adds compressor start counts to the outdoor unit, to spot short-cycling.",
+              "compressor_on_w": "Default 250 W. Above the off level, below the compressor's lowest running power.",
+              "compressor_off_w": "Default 150 W. Above what the meter reads while the compressor is off.",
+              "climate_temperature": "The room temperature (default) or the corrected intake: the value the unit regulates on, updated every 5 minutes."
+            }
+          },
+          "short_cycle_guard": {
+            "name": "Experimental: short-cycle guard",
+            "description": "Steers units that heat to start and stop the compressor less often. Off by default. If you use your own automation for the fan, switch it off first.",
+            "data": {
+              "guard": "Short-cycle guard",
+              "guard_fan": "Fan while heating, instead of Auto",
+              "guard_hold": "Delay restarts while the room is warm",
+              "guard_hold_offset": "Lower the setpoint by",
+              "guard_band": "Restart when the room is this far below the setpoint",
+              "guard_max_hold": "Longest delay"
+            },
+            "data_description": {
+              "guard_fan": "While a unit heats with its fan on Auto, use this speed instead. Low-medium kept a short-cycling unit running steadily. Other fan choices are left alone.",
+              "guard_hold": "Needs the power sensor above and a room temperature sensor in the indoor unit's settings. After the compressor stops while the room is still warm, the unit's setpoint is lowered until the room has cooled, then put back.",
+              "guard_hold_offset": "Default 0.5 °C. The thermostat card keeps showing your setpoint.",
+              "guard_band": "Default 0.3 °C.",
+              "guard_max_hold": "Default 45 minutes. After this the setpoint goes back regardless."
+            }
+          }
         }
       }
     },

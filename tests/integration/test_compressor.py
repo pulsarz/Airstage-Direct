@@ -125,14 +125,27 @@ async def test_options_check_the_levels(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {OPT_POWER_SENSOR: POWER, OPT_COMPRESSOR_ON_W: 100, OPT_COMPRESSOR_OFF_W: 150},
+        {
+            "compressor": {
+                OPT_POWER_SENSOR: POWER,
+                OPT_COMPRESSOR_ON_W: 100,
+                OPT_COMPRESSOR_OFF_W: 150,
+            }
+        },
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "compressor_levels"}
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {OPT_POWER_SENSOR: POWER, OPT_COMPRESSOR_ON_W: 300, OPT_COMPRESSOR_OFF_W: 150},
+        {
+            "compressor": {
+                OPT_POWER_SENSOR: POWER,
+                OPT_COMPRESSOR_ON_W: 300,
+                OPT_COMPRESSOR_OFF_W: 150,
+            }
+        },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert entry.runtime_data.compressor is not None
+    assert entry.options[OPT_POWER_SENSOR] == POWER  # stored flat

@@ -404,19 +404,21 @@
           },
           "short_cycle_guard": {
             "name": "Experimental: short-cycle guard",
-            "description": "Helps units that heat start and stop the compressor less often. Off by default. If you use your own automation for the fan or setpoint, switch it off first.",
+            "description": "Gives units that heat long runs and long pauses instead of short cycles. Off by default. If you use your own automation for the fan or setpoint, switch it off first.",
             "data": {
               "guard": "Short-cycle guard",
               "guard_fan": "Fan while heating, instead of Auto",
-              "guard_steer": "Steer by the room sensor",
-              "guard_raise": "Raise the unit's setpoint by",
-              "guard_band": "When the room is this far below the setpoint"
+              "guard_thermostat": "Room thermostat (uses the room sensor)",
+              "guard_band": "Band either side of your setpoint",
+              "guard_run_raise": "While running, raise the unit's setpoint by",
+              "guard_pause_drop": "While pausing, lower the unit's setpoint by"
             },
             "data_description": {
               "guard_fan": "While a unit heats with its fan on Auto, use this speed instead. Low-medium kept a short-cycling unit running steadily. Other fan choices are left alone.",
-              "guard_steer": "Needs a room temperature sensor in the indoor unit's settings. While the room is below your setpoint, the unit's own setpoint is raised a little, so the unit does not stop early on its own (too warm) sensor; once the room reaches your setpoint, it goes back. The thermostat card keeps showing your setpoint.",
-              "guard_raise": "Default 0.5 °C.",
-              "guard_band": "Default 0.1 °C. Changes are at least 5 minutes apart."
+              "guard_thermostat": "Needs a room temperature sensor in the indoor unit's settings. That sensor decides when the unit heats: it runs until the room is above your setpoint by the band, then pauses until the room is below it by the band. The unit's own sensor reads its warm air and would stop and restart it every few minutes. The thermostat card keeps showing your setpoint.",
+              "guard_band": "Default 0.3 °C (so 21.7–22.3 °C at 22). Wider: fewer starts, more swing. Changes are at least 5 minutes apart.",
+              "guard_run_raise": "Default 1 °C, so the unit's own sensor does not stop a run early.",
+              "guard_pause_drop": "Default 3 °C, so the unit cannot restart by itself during a pause. The Fujitsu app shows this lower setpoint during a pause."
             }
           }
         }

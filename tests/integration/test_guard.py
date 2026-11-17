@@ -1,5 +1,5 @@
-"""The short-cycle guard (experimental): fan floor, steering by a room sensor,
-and the fail-safe rules. With the guard off, it never writes."""
+"""The short-cycle guard (experimental): fan floor, the room thermostat, and
+the fail-safe rules. With the guard off, it never writes."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from custom_components.airstage_direct.const import (
     DOMAIN,
     OPT_GUARD,
     OPT_GUARD_FAN,
-    OPT_GUARD_STEER,
+    OPT_GUARD_THERMOSTAT,
     OPT_POWER_SENSOR,
 )
 from tests.integration.conftest import unit_subentry
@@ -135,7 +135,7 @@ async def test_leave_the_fan_alone(
     assert writes(sim) == []
 
 
-# -- steering by the room sensor ------------------------------------------------------
+# -- the room thermostat --------------------------------------------------------------
 
 
 class Rig:
@@ -159,6 +159,10 @@ class Rig:
         self.guard._tick(None)
         await self.hass.async_block_till_done()
 
+    async def room(self, celsius: float, seconds: float = 0) -> None:
+        room(self.hass, celsius)
+        await self.tick(seconds)
+
     async def push(self, sim: Simulator, **values: str) -> None:
         """A change made elsewhere (remote, app), arriving like a push."""
         sim.indoor.update(values)
@@ -166,7 +170,7 @@ class Rig:
         await self.hass.async_block_till_done()
 
 
-async def steered(
+async def thermostat(
     hass: HomeAssistant,
     sim: Simulator,
     capabilities: dict[str, Any],
@@ -179,132 +183,130 @@ async def steered(
     return Rig(hass, entry)
 
 
-async def test_a_room_below_the_setpoint_raises_the_units_setpoint(
+async def test_runs_and_pauses_on_the_room_sensor(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)  # measured: room 21.8 at 22.0
-    assert writes(sim) == [{"iu_set_tmp": "225"}]
+    rig = await thermostat(hass, sim, capabilities)  # measured: room 21.8 at 22.0
+    assert writes(sim) == [{"iu_set_tmp": "230"}]  # run: 22 + 1
     climate = state_of(hass, CLIMATE)
     assert climate.attributes["temperature"] == 22.0  # still shows the user's setpoint
-    assert climate.attributes["guard"] == "raised"
-    assert climate.attributes["guard_unit_setpoint"] == 22.5
-    room(hass, 22.0)  # reached, but within 5 minutes of the raise: wait
-    await hass.async_block_till_done()
+    assert climate.attributes["guard"] == "run"
+    assert climate.attributes["guard_unit_setpoint"] == 23.0
+    await rig.room(22.3)  # top of the band, but within 5 minutes: wait
     assert len(writes(sim)) == 1
     await rig.tick(300)
-    assert writes(sim)[-1] == {"iu_set_tmp": "220"}
-    record = state_of(hass, CLIMATE).attributes["guard_last_raise"]
-    assert record["ended"] == "room reached the setpoint"
-    assert record["room_at_start"] == 21.8
-    assert record["room_at_end"] == 22.0
-
-
-async def test_within_the_band_nothing_happens(
-    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
-) -> None:
-    await steered(hass, sim, capabilities, room_c=21.95)
-    assert writes(sim) == []
-
-
-async def test_changes_are_at_least_five_minutes_apart(
-    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
-) -> None:
-    rig = await steered(hass, sim, capabilities)
-    await rig.tick(300)
-    room(hass, 22.1)
-    await rig.tick()
-    assert writes(sim)[-1] == {"iu_set_tmp": "220"}
-    room(hass, 21.8)  # below again at once: not before 5 minutes
-    await rig.tick(60)
+    assert writes(sim)[-1] == {"iu_set_tmp": "190"}  # pause: 22 - 3
+    assert state_of(hass, CLIMATE).attributes["guard"] == "pause"
+    record = state_of(hass, CLIMATE).attributes["guard_last_phase"]
+    assert record["phase"] == "run"
+    assert record["ended"] == "room reached the top of the band"
+    await rig.room(21.8, 600)  # not yet at the bottom
     assert len(writes(sim)) == 2
-    await rig.tick(240)
-    assert writes(sim)[-1] == {"iu_set_tmp": "225"}
+    await rig.room(21.7)
+    assert writes(sim)[-1] == {"iu_set_tmp": "230"}  # the next run
+    assert state_of(hass, CLIMATE).attributes["guard_last_phase"]["phase"] == "pause"
 
 
-async def test_no_room_sensor_no_steering(
+async def test_a_warm_room_starts_with_a_pause(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    await steered(hass, sim, capabilities, room_sensor=False)
+    await thermostat(hass, sim, capabilities, room_c=22.4)
+    assert writes(sim) == [{"iu_set_tmp": "190"}]
+
+
+async def test_no_room_sensor_no_thermostat(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    await thermostat(hass, sim, capabilities, room_sensor=False)
     assert writes(sim) == []
-    assert state_of(hass, CLIMATE).attributes["guard_steering"] == "needs a room sensor"
+    assert state_of(hass, CLIMATE).attributes["guard_room_thermostat"] == "needs a room sensor"
 
 
-async def test_steering_can_be_switched_off(
+async def test_the_thermostat_can_be_switched_off(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    await steered(hass, sim, capabilities, options={**GUARD_ON, OPT_GUARD_STEER: False})
+    await thermostat(hass, sim, capabilities, options={**GUARD_ON, OPT_GUARD_THERMOSTAT: False})
     assert writes(sim) == []
 
 
-async def test_a_user_setpoint_change_wins(
+async def test_a_new_setpoint_in_home_assistant_becomes_the_target(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)
+    rig = await thermostat(hass, sim, capabilities)
     await hass.services.async_call(
         "climate", "set_temperature", {"entity_id": CLIMATE, "temperature": 23}, blocking=True
     )
-    assert writes(sim) == [{"iu_set_tmp": "225"}, {"iu_set_tmp": "230"}]
-    assert not rig.unit_guard.raised
-    room(hass, 23.5)
-    await rig.tick(600)
-    assert len(writes(sim)) == 2  # nothing put back over the user's choice
+    await hass.async_block_till_done()
+    assert writes(sim) == [{"iu_set_tmp": "230"}, {"iu_set_tmp": "240"}]  # run: 23 + 1
+    assert rig.unit_guard.stored.user_setpoint == 23.0
+    assert state_of(hass, CLIMATE).attributes["temperature"] == 23.0
 
 
-async def test_a_remote_setpoint_change_wins(
+async def test_a_change_with_the_remote_wins(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)
-    await rig.push(sim, iu_set_tmp="210")
-    assert not rig.unit_guard.raised
-    room(hass, 22.5)
-    await rig.tick(600)
-    assert writes(sim) == [{"iu_set_tmp": "225"}]
+    rig = await thermostat(hass, sim, capabilities)
+    await rig.push(sim, iu_set_tmp="210")  # with the remote
+    assert not rig.unit_guard.active
+    assert len(writes(sim)) == 1  # nothing put back over it
+    await rig.tick(300)  # later the guard carries on, with 21.0 as the target
+    assert rig.unit_guard.stored.user_setpoint == 21.0
+    assert writes(sim)[-1] == {"iu_set_tmp": "180"}  # room 21.8: above 21.3, a pause
 
 
-async def test_switching_the_unit_off_restores_at_power_on(
+async def test_switching_the_unit_off_and_on(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)
+    rig = await thermostat(hass, sim, capabilities)
     await rig.push(sim, iu_onoff="0")
-    assert writes(sim) == [{"iu_set_tmp": "225"}]  # an off unit refuses: not even tried
+    assert writes(sim) == [{"iu_set_tmp": "230"}]  # an off unit refuses: not even tried
     assert rig.unit_guard.stored.restore_pending == 22.0
-    room(hass, 22.2)  # warm by the time it is switched on again
-    await rig.push(sim, iu_onoff="1")
-    assert writes(sim)[-1] == {"iu_set_tmp": "220"}
+    await rig.push(sim, iu_onoff="1")  # on again: the guard carries on with 22.0
+    assert rig.unit_guard.stored.user_setpoint == 22.0
     assert rig.unit_guard.stored.restore_pending is None
+    assert len(writes(sim)) == 1  # already at the run setpoint
+
+
+async def test_off_without_the_room_sensor_restores_at_power_on(
+    hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
+) -> None:
+    rig = await thermostat(hass, sim, capabilities)
+    await rig.push(sim, iu_onoff="0")
+    hass.states.async_set(ROOM, "unavailable")
+    await rig.push(sim, iu_onoff="1")
+    assert writes(sim)[-1] == {"iu_set_tmp": "220"}  # back to the user's
 
 
 async def test_a_user_change_cancels_a_pending_restore(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)
+    rig = await thermostat(hass, sim, capabilities)
     await rig.push(sim, iu_onoff="0")
     await rig.push(sim, iu_set_tmp="240")  # with the remote while off
     assert rig.unit_guard.stored.restore_pending is None
-    room(hass, 24.0)
-    count = len(writes(sim))
     await rig.push(sim, iu_onoff="1")
-    assert writes(sim)[count:] == []  # 24.0 stays
+    await rig.tick(300)
+    assert rig.unit_guard.stored.user_setpoint == 24.0  # the remote's value is the target
 
 
-async def test_a_stale_room_sensor_restores(
+async def test_a_stale_room_sensor_hands_back(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)
+    rig = await thermostat(hass, sim, capabilities)
     hass.states.async_set(ROOM, "unavailable")
     await rig.tick()
     assert writes(sim)[-1] == {"iu_set_tmp": "220"}
-    assert state_of(hass, CLIMATE).attributes["guard_last_raise"]["ended"] == (
+    assert state_of(hass, CLIMATE).attributes["guard_last_phase"]["ended"] == (
         "room sensor unavailable or stale"
     )
 
 
-async def test_a_refused_raise_is_forgotten(
+async def test_a_refused_setpoint_lets_go(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
     sim.write_res = "unknown"
-    rig = await steered(hass, sim, capabilities)
-    assert not rig.unit_guard.raised
+    rig = await thermostat(hass, sim, capabilities)
+    assert not rig.unit_guard.active
     assert rig.unit_guard.stored.restore_pending is None
     assert state_of(hass, CLIMATE).attributes["temperature"] == 22.0
 
@@ -312,20 +314,22 @@ async def test_a_refused_raise_is_forgotten(
 async def test_unload_restores_and_a_crash_is_undone_at_start_up(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
-    rig = await steered(hass, sim, capabilities)
+    rig = await thermostat(hass, sim, capabilities)
     assert await hass.config_entries.async_unload(rig.entry.entry_id)
     assert writes(sim)[-1] == {"iu_set_tmp": "220"}
-    # A crash while raised: the stored raise is undone at the next start.
-    sim.indoor["iu_set_tmp"] = "225"
+    # A crash in a pause: undone at the next start, then the guard carries on.
+    sim.indoor["iu_set_tmp"] = "190"
     store: Store[dict[str, Any]] = Store(
         hass, guard_module.STORE_VERSION, f"{DOMAIN}.{rig.entry.entry_id}.guard"
     )
     (sub_id,) = rig.entry.subentries
-    await store.async_save({sub_id: {"user_setpoint": 22.0, "raised_setpoint": 22.5}})
-    room(hass, 22.3)  # warm now: nothing new to raise
+    await store.async_save(
+        {sub_id: {"user_setpoint": 22.0, "guard_setpoint": 19.0, "phase": "pause"}}
+    )
+    count = len(writes(sim))
     assert await hass.config_entries.async_setup(rig.entry.entry_id)
     await hass.async_block_till_done()
-    assert writes(sim)[-1] == {"iu_set_tmp": "220"}
+    assert writes(sim)[count:] == [{"iu_set_tmp": "220"}, {"iu_set_tmp": "230"}]
 
 
 async def test_home_assistant_stopping_restores(
@@ -333,11 +337,11 @@ async def test_home_assistant_stopping_restores(
 ) -> None:
     from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 
-    rig = await steered(hass, sim, capabilities)
+    rig = await thermostat(hass, sim, capabilities)
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
     await hass.async_block_till_done()
     assert writes(sim)[-1] == {"iu_set_tmp": "220"}
-    assert not rig.unit_guard.raised
+    assert not rig.unit_guard.active
 
 
 async def test_stopping_with_the_fan_floor_puts_auto_back_for_good(
@@ -356,9 +360,9 @@ async def test_switching_the_guard_off_while_the_unit_is_off(
 ) -> None:
     """The undo waits for the unit to be switched on, even with the guard off."""
     room(hass, 21.8)
-    entry = await setup(hass, sim, capabilities, GUARD_ON)  # fan Auto -> floor, raised
+    entry = await setup(hass, sim, capabilities, GUARD_ON)  # fan Auto -> floor, a run
     rig = Rig(hass, entry)
-    assert writes(sim) == [{"iu_set_tmp": "225"}, {"iu_fan_spd": "7"}]
+    assert writes(sim) == [{"iu_set_tmp": "230"}, {"iu_fan_spd": "7"}]
     await rig.push(sim, iu_onoff="0")
     hass.config_entries.async_update_entry(entry, options={})
     await hass.async_block_till_done()  # reloaded with the guard off
@@ -377,7 +381,7 @@ async def test_records_count_compressor_starts_with_a_power_sensor(
     hass: HomeAssistant, sim: Simulator, capabilities: dict[str, Any]
 ) -> None:
     hass.states.async_set(POWER, "10", {"unit_of_measurement": "W"})
-    rig = await steered(hass, sim, capabilities, options={**GUARD_ON, OPT_POWER_SENSOR: POWER})
+    rig = await thermostat(hass, sim, capabilities, options={**GUARD_ON, OPT_POWER_SENSOR: POWER})
     compressor = rig.entry.runtime_data.compressor
     assert compressor is not None
 
@@ -389,8 +393,8 @@ async def test_records_count_compressor_starts_with_a_power_sensor(
             await hass.async_block_till_done()
 
     await power(30, 10)
-    await power(600, 500)  # one start while raised
-    room(hass, 22.0)
+    await power(600, 500)  # one start in the run
+    room(hass, 22.3)
     await rig.tick(300)
     assert rig.unit_guard.stored.records[-1]["compressor_starts"] == 1
 

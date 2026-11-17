@@ -2,30 +2,37 @@
 
 Measured on a short-cycling unit (docs/measurements.md, 2026-11-16): the unit
 switches its compressor off when its own corrected intake reaches setpoint
-+ 1 C, and that sensor reads the unit's warm air. On Auto the fan runs slowly
-and it reads too warm all the time; on Low-medium the room and the sensor
-mostly agree, but a compressor speed-up (a restart burst, or one by itself
-after long running at low speed) still pushes the sensor over the stop point
-while the room is below the setpoint. Two levers, each optional:
++ 1 C and restarts as soon as that reading dips, after a 3.6-minute minimum
+pause. The reading follows the unit's own warm air: it swung from 1.5 C above
+the room to 1 C below it within minutes while the room did not move. So the
+unit makes short runs (stopped early by false warmth) and short pauses
+(restarted by a false dip). Two levers, each optional:
 
 - **Fan floor.** While a unit heats with its fan on Auto, the guard sets a
   fixed speed instead (Low-medium by default). Any other fan choice is left
   alone. When the guard stops, or the unit leaves heat, a fan the guard set
   goes back to Auto.
-- **Steering by a room sensor.** With a room temperature sensor for the unit:
-  while the room is below the setpoint (by more than a small band), the
-  unit's own setpoint is raised a little (0.5 C by default), so a spike in
-  its sensor does not stop it; once the room reaches the setpoint, the
-  unit's setpoint goes back and the unit regulates (and stops) on its own.
+- **Room thermostat.** With a room temperature sensor for the unit, that
+  sensor decides when the unit heats, with a band around the user's
+  setpoint (0.3 C by default), like a central-heating thermostat:
+  - *run*: the unit's setpoint is raised (1 C by default), so its own sensor
+    does not stop it early; it runs, slowing down as the room warms, until
+    the room reaches the setpoint plus the band;
+  - *pause*: the unit's setpoint is lowered (3 C by default), so it cannot
+    restart on its own sensor; it stays off until the room has dropped to
+    the setpoint minus the band, then a new run starts.
+  When the house needs more heat than the compressor's minimum, the room
+  never reaches the top of the band and the unit simply keeps running.
   Changes are at least 5 minutes apart.
 
 Fail-safe rules: the user's setpoint is stored before the first write and
-restored on every way out (room reached, sensor stale or unavailable, unit
-switched off or out of heat, guard switched off, unload, Home Assistant
-stopping, start-up after a crash). A switched-off unit refuses writes, so a
-restore waits for it to be switched on. A setpoint or fan change that is not
-the guard's (app, remote, Home Assistant) wins at once. Too many guard writes
-for one unit in an hour switch the guard off for that unit.
+restored on every way out (sensor stale or unavailable, unit switched off or
+out of heat, guard switched off, unload, Home Assistant stopping, start-up
+after a crash). A switched-off unit refuses writes, so a restore waits for it
+to be switched on. A setpoint change made in Home Assistant becomes the new
+target; one made elsewhere (app, remote) ends the guard's change at once,
+and a fan change made elsewhere wins too. Too many guard writes for one unit
+in an hour switch the guard off for that unit.
 """
 
 from __future__ import annotations
@@ -56,24 +63,27 @@ from .const import (
     DOMAIN,
     GUARD_DEFAULT_BAND,
     GUARD_DEFAULT_FAN,
-    GUARD_DEFAULT_RAISE,
+    GUARD_DEFAULT_PAUSE_DROP,
+    GUARD_DEFAULT_RUN_RAISE,
     GUARD_FAN_LEAVE,
     GUARD_TICK,
     OPT_GUARD,
     OPT_GUARD_BAND,
     OPT_GUARD_FAN,
-    OPT_GUARD_RAISE,
-    OPT_GUARD_STEER,
+    OPT_GUARD_PAUSE_DROP,
+    OPT_GUARD_RUN_RAISE,
+    OPT_GUARD_THERMOSTAT,
 )
 from .coordinator import UnitCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 STORE_VERSION: Final = 1
-STALE_S: Final = 300.0  # a room reading older than this ends steering
-MIN_CHANGE_S: Final = 300.0  # between two steering changes of one unit
+STALE_S: Final = 300.0  # a room reading older than this hands control back
+MIN_CHANGE_S: Final = 300.0  # between two phase changes of one unit
 MAX_WRITES_PER_HOUR: Final = 20  # runaway protection, e.g. fighting an automation
-RECORDS_KEPT: Final = 20
+RECORDS_KEPT: Final = 30
+RUN, PAUSE = "run", "pause"
 FAN_OPTIONS: Final = {
     "quiet": FanSpeed.QUIET,
     "low": FanSpeed.LOW,
@@ -88,8 +98,9 @@ FAN_OPTIONS: Final = {
 class Stored:
     """What survives a restart, per unit."""
 
-    user_setpoint: float | None = None  # set while the guard has raised the setpoint
-    raised_setpoint: float | None = None  # what the guard wrote
+    user_setpoint: float | None = None  # set while the guard controls the setpoint
+    guard_setpoint: float | None = None  # what the guard wrote
+    phase: str | None = None  # RUN or PAUSE
     fan_set: bool = False  # the guard set the fan (Auto goes back when it stops)
     fan_floor: int | None = None  # the speed the guard set (to know it is still ours)
     restore_pending: float | None = None  # a setpoint to put back when the unit allows
@@ -97,7 +108,7 @@ class Stored:
 
 
 @dataclass
-class Raise:
+class Phase:
     started: float
     room_at_start: float
     starts_at_start: int | None  # compressor starts counted so far (power sensor)
@@ -112,7 +123,7 @@ class UnitGuard:
         self.device = unit.device
         self.room_sensor = room_sensor
         self.stored = Stored()
-        self.current: Raise | None = None
+        self.current: Phase | None = None
         self.stopped_reason: str | None = None  # the guard gave up on this unit
         self._expect: dict[str, Any] = {}  # values the guard wrote and awaits
         self._writes: deque[float] = deque()
@@ -131,14 +142,15 @@ class UnitGuard:
         )
 
     @property
-    def raised(self) -> bool:
+    def active(self) -> bool:
+        """The guard controls the unit's setpoint (the user's is stored)."""
         return self.stored.user_setpoint is not None
 
     def state(self) -> str:
         if self.stopped_reason:
             return "stopped"
-        if self.raised:
-            return "raised"
+        if self.active:
+            return self.stored.phase or RUN
         if self.stored.fan_set:
             return "fan_floor"
         return "watching" if self.heating else "idle"
@@ -147,13 +159,13 @@ class UnitGuard:
         attrs: dict[str, Any] = {"guard": self.state()}
         if self.stopped_reason:
             attrs["guard_stopped_because"] = self.stopped_reason
-        if self.raised:
+        if self.active:
             attrs["guard_user_setpoint"] = self.stored.user_setpoint
             attrs["guard_unit_setpoint"] = self.setpoint()
-        if self.system.steer and not self.room_sensor:
-            attrs["guard_steering"] = "needs a room sensor"
+        if self.system.thermostat and not self.room_sensor:
+            attrs["guard_room_thermostat"] = "needs a room sensor"
         if self.stored.records:
-            attrs["guard_last_raise"] = self.stored.records[-1]
+            attrs["guard_last_phase"] = self.stored.records[-1]
         return attrs
 
     def room(self) -> float | None:
@@ -204,9 +216,9 @@ class UnitGuard:
         if self.stored.restore_pending is not None:
             self.stored.restore_pending = None  # the user set a setpoint: theirs wins
             self.system.save()
-        if self.raised and self.setpoint() != self.stored.raised_setpoint:
-            _LOGGER.debug("%s: setpoint changed by someone else: steering ends", self.name)
-            self._end_raise("setpoint changed by the user", restore=False)
+        if self.active and self.setpoint() != self.stored.guard_setpoint:
+            _LOGGER.debug("%s: setpoint changed by someone else: hands off", self.name)
+            self._end("setpoint changed elsewhere", restore=False)
 
     def _fan_changed(self) -> None:
         if self._ours("iu_fan_spd"):
@@ -217,6 +229,9 @@ class UnitGuard:
 
     # -- the decisions -------------------------------------------------------------------
 
+    def _thermostat_applies(self) -> bool:
+        return self.system.thermostat and bool(self.room_sensor)
+
     @callback
     def evaluate(self) -> None:
         if self.stopped_reason:
@@ -226,9 +241,11 @@ class UnitGuard:
         if pending is not None and on is True and "iu_set_tmp" not in self._expect:
             self.stored.restore_pending = None
             self.system.save()
-            if self.setpoint() != pending:
+            if self._thermostat_applies() and self.heating and self.room() is not None:
+                self._take_over(pending)  # back on: the guard continues with that target
+            elif self.setpoint() != pending:
                 self._write_setpoint(pending, "restore after an earlier failed write", restore=True)
-        self._steer()
+        self._thermostat()
         self._fan_floor(on, mode)
 
     def _fan_floor(self, on: Any, mode: Any) -> None:
@@ -251,87 +268,124 @@ class UnitGuard:
             self.system.save()
             self._write_fan(FanSpeed.AUTO, "left heat: fan back to Auto")
 
-    def _steer(self) -> None:
-        if not self.system.steer or not self.room_sensor:
+    def _thermostat(self) -> None:
+        if not self._thermostat_applies():
             return
-        if self.raised:
+        if self.active:
             if not self.heating:
-                self._end_raise("unit off or not heating")
+                self._end("unit off or not heating")
                 return
             room = self.room()
             if room is None:
-                self._end_raise("room sensor unavailable or stale")
+                self._end("room sensor unavailable or stale")
                 return
-            user = self.stored.user_setpoint
-            assert user is not None
-            if room >= user and self._may_change():
-                self._end_raise("room reached the setpoint")
+            target = self.stored.user_setpoint
+            assert target is not None
+            band = self.system.band
+            if not self._may_change():
+                return
+            if self.stored.phase == RUN and room >= target + band:
+                self._switch(PAUSE, room, "room reached the top of the band")
+            elif self.stored.phase == PAUSE and room <= target - band:
+                self._switch(RUN, room, "room reached the bottom of the band")
             return
         if not self.heating or self.stored.restore_pending is not None:
             return
         if "iu_set_tmp" in self._expect or not self._may_change():
             return  # the current setpoint may be the guard's own, or too soon
-        room, setpoint = self.room(), self.setpoint()
-        if room is None or setpoint is None or room >= setpoint - self.system.band:
+        setpoint = self.setpoint()
+        if setpoint is not None and self.room() is not None:
+            self._take_over(setpoint)
+
+    def _take_over(self, target: float) -> None:
+        """Start controlling the setpoint, with `target` as the user's."""
+        room = self.room()
+        if room is None:
             return
-        target = min(self._highest(), setpoint + self.system.raise_by)
-        if target <= setpoint:
-            return
-        self.stored.user_setpoint, self.stored.raised_setpoint = setpoint, target
+        phase = PAUSE if room >= target + self.system.band else RUN
+        self.stored.user_setpoint = target
+        self._enter(phase, room, "start")
+
+    def _switch(self, phase: str, room: float, why: str) -> None:
+        self._close_record(why, room)
+        self._enter(phase, room, why)
+
+    def _enter(self, phase: str, room: float, why: str) -> None:
+        target = self.stored.user_setpoint
+        assert target is not None
+        unit_setpoint = self._phase_setpoint(target, phase)
+        self.stored.phase, self.stored.guard_setpoint = phase, unit_setpoint
         self.system.save()  # stored before the write
         compressor = self.system.compressor
-        self.current = Raise(
-            started=self.system.clock(),
-            room_at_start=room,
-            starts_at_start=compressor.tracker.starts if compressor else None,
-        )
-        self._last_change = self.system.clock()
-        _LOGGER.debug("%s: room %.2f C below %.1f: setpoint -> %.1f", self.name, room,
-                      setpoint, target)  # fmt: skip
-        self._write_setpoint(target, "room below the setpoint")
+        now = self.system.clock()
+        self.current = Phase(now, room, compressor.tracker.starts if compressor else None)
+        self._last_change = now
+        _LOGGER.debug("%s: %s (%s), room %.2f C, target %.1f: setpoint %.1f", self.name,
+                      phase, why, room, target, unit_setpoint)  # fmt: skip
+        if self.setpoint() != unit_setpoint:
+            self._write_setpoint(unit_setpoint, f"{phase}: {why}")
+
+    def _phase_setpoint(self, target: float, phase: str) -> float:
+        lo, hi = self._limits()
+        if phase == RUN:
+            return min(hi, target + self.system.run_raise)
+        return max(lo, target - self.system.pause_drop)
 
     def _may_change(self) -> bool:
         last = self._last_change
         return last is None or self.system.clock() - last >= MIN_CHANGE_S
 
-    def end_raise_for_user(self) -> None:
-        """The user sets a new setpoint (from Home Assistant): steering ends without
-        restoring, since their write follows."""
-        self._end_raise("setpoint changed by the user", restore=False)
-
-    def _end_raise(self, reason: str, *, restore: bool = True) -> None:
-        user = self.stored.user_setpoint
-        current = self.current
-        now = self.system.clock()
-        if current is not None:
-            record: dict[str, Any] = {
-                "ended": reason,
-                "minutes": round((now - current.started) / 60, 1),
-                "room_at_start": round(current.room_at_start, 2),
-                "room_at_end": None if (room := self.room()) is None else round(room, 2),
-            }
-            compressor = self.system.compressor
-            if compressor is not None and current.starts_at_start is not None:
-                record["compressor_starts"] = compressor.tracker.starts - current.starts_at_start
-            self.stored.records = [*self.stored.records, record][-RECORDS_KEPT:]
-        self.current = None
-        self._last_change = now
-        self.stored.user_setpoint = self.stored.raised_setpoint = None
+    def user_target(self, celsius: float) -> bool:
+        """A new setpoint from Home Assistant while the guard is in control: it
+        becomes the target, and the unit gets the matching setpoint. Returns
+        whether the guard handled it (otherwise the caller writes it)."""
+        if not self.active or self.stopped_reason:
+            return False
+        self.stored.user_setpoint = celsius
+        unit_setpoint = self._phase_setpoint(celsius, self.stored.phase or RUN)
+        self.stored.guard_setpoint = unit_setpoint
         self.system.save()
-        _LOGGER.debug("%s: steering ends (%s)", self.name, reason)
+        if self.setpoint() != unit_setpoint:
+            self._write_setpoint(unit_setpoint, "new target")
+        return True
+
+    def _close_record(self, why: str, room: float | None) -> None:
+        current = self.current
+        if current is None:
+            return
+        record: dict[str, Any] = {
+            "phase": self.stored.phase,
+            "ended": why,
+            "minutes": round((self.system.clock() - current.started) / 60, 1),
+            "room_at_start": round(current.room_at_start, 2),
+            "room_at_end": None if room is None else round(room, 2),
+        }
+        compressor = self.system.compressor
+        if compressor is not None and current.starts_at_start is not None:
+            record["compressor_starts"] = compressor.tracker.starts - current.starts_at_start
+        self.stored.records = [*self.stored.records, record][-RECORDS_KEPT:]
+        self.current = None
+
+    def _end(self, reason: str, *, restore: bool = True) -> None:
+        user = self.stored.user_setpoint
+        self._close_record(reason, self.room())
+        self._last_change = self.system.clock()
+        self.stored.user_setpoint = self.stored.guard_setpoint = self.stored.phase = None
+        self.system.save()
+        _LOGGER.debug("%s: hands off (%s)", self.name, reason)
         if restore and user is not None and self.setpoint() != user:
             if self.device.value("iu_onoff") is False:
                 # A switched-off unit refuses setpoint writes: put it back at power-on.
                 self.stored.restore_pending = user
                 self.system.save()
             else:
-                self._write_setpoint(user, f"steering ends: {reason}", restore=True)
+                self._write_setpoint(user, f"hands off: {reason}", restore=True)
 
-    def _highest(self) -> float:
+    def _limits(self) -> tuple[float, float]:
         caps = self.device.capabilities
         if caps is not None and OpMode.HEAT in caps.limits:
-            return caps.limits[OpMode.HEAT][1]
-        return 30.0
+            return caps.limits[OpMode.HEAT]
+        return 16.0, 30.0
 
     # -- writing ---------------------------------------------------------------------------
 
@@ -347,7 +401,7 @@ class UnitGuard:
             )  # fmt: skip
             self.stopped_reason = "too many writes in an hour"
             user = self.stored.user_setpoint
-            self.stored.user_setpoint = self.stored.raised_setpoint = None
+            self.stored.user_setpoint = self.stored.guard_setpoint = self.stored.phase = None
             self.current = None
             self.system.save()
             if user is not None:
@@ -383,11 +437,10 @@ class UnitGuard:
                 if restore:  # e.g. the unit is off: put it back when it is on again
                     self.stored.restore_pending = value
                     self.system.save()
-                elif name == "iu_set_tmp" and self.raised:
-                    # The raise did not happen: forget it, nothing to undo.
-                    self.stored.user_setpoint = self.stored.raised_setpoint = None
-                    self.current = None
-                    self.system.save()
+                elif name == "iu_set_tmp" and self.active:
+                    # The unit did not take it: the guard lets go (nothing to undo
+                    # if this was its first write; otherwise put the user's back).
+                    self._end("the unit refused the setpoint")
             self.system.notify()
 
         self.system.entry_task(run(), f"{DOMAIN} guard {self.name} {name}")
@@ -396,7 +449,7 @@ class UnitGuard:
         """Undo the guard's changes now (unload, guard off, Home Assistant stopping)."""
         user = self.stored.user_setpoint or self.stored.restore_pending
         self.current = None
-        self.stored.user_setpoint = self.stored.raised_setpoint = None
+        self.stored.user_setpoint = self.stored.guard_setpoint = self.stored.phase = None
         self.stored.restore_pending = None
         if user is not None and self.setpoint() == user:
             user = None
@@ -436,8 +489,9 @@ class CycleGuard:
         self.enabled = bool(options.get(OPT_GUARD, False))
         fan = options.get(OPT_GUARD_FAN, GUARD_DEFAULT_FAN)
         self.fan: FanSpeed | None = None if fan == GUARD_FAN_LEAVE else FAN_OPTIONS.get(fan)
-        self.steer = bool(options.get(OPT_GUARD_STEER, True))
-        self.raise_by = float(options.get(OPT_GUARD_RAISE, GUARD_DEFAULT_RAISE))
+        self.thermostat = bool(options.get(OPT_GUARD_THERMOSTAT, True))
+        self.run_raise = float(options.get(OPT_GUARD_RUN_RAISE, GUARD_DEFAULT_RUN_RAISE))
+        self.pause_drop = float(options.get(OPT_GUARD_PAUSE_DROP, GUARD_DEFAULT_PAUSE_DROP))
         self.band = float(options.get(OPT_GUARD_BAND, GUARD_DEFAULT_BAND))
         self.units = {
             sub_id: UnitGuard(self, unit, unit.subentry.data.get(CONF_ROOM_SENSOR) or None)
@@ -460,7 +514,7 @@ class CycleGuard:
         for sub_id, unit in self.units.items():
             data = stored.get(sub_id) or {}
             unit.stored = Stored(**{k: v for k, v in data.items() if k in Stored.__annotations__})
-            leftover = unit.raised or unit.stored.restore_pending is not None
+            leftover = unit.active or unit.stored.restore_pending is not None
             if leftover or (not self.enabled and unit.stored.fan_set):
                 await unit.async_restore("start-up")
         await self._async_save()
@@ -474,7 +528,7 @@ class CycleGuard:
         for unit in self.units.values():
             self._undo.append(unit.device.add_listener(unit.changed))
         rooms = {u.room_sensor: u for u in self.units.values() if u.room_sensor}
-        if rooms and self.steer:
+        if rooms and self.thermostat:
             self._undo.append(
                 async_track_state_change_event(self.hass, list(rooms), self._room_changed)
             )
@@ -508,7 +562,7 @@ class CycleGuard:
             self._stop_undo()
             self._stop_undo = None
         if not self.enabled and not any(
-            u.raised or u.stored.fan_set or u.stored.restore_pending is not None
+            u.active or u.stored.fan_set or u.stored.restore_pending is not None
             for u in self.units.values()
         ):
             return  # never used: nothing to undo, nothing to write

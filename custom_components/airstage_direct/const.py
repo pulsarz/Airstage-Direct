@@ -53,14 +53,16 @@ COMPRESSOR_TICK: Final = timedelta(seconds=10)
 # Experimental: the short-cycle guard (guard.py).
 OPT_GUARD: Final = "guard"
 OPT_GUARD_FAN: Final = "guard_fan"  # a fan key from guard.FAN_OPTIONS, or GUARD_FAN_LEAVE
-OPT_GUARD_STEER: Final = "guard_steer"  # steer the setpoint by the unit's room sensor
-OPT_GUARD_RAISE: Final = "guard_raise"  # deg C added while the room is below the setpoint
-OPT_GUARD_BAND: Final = "guard_band"  # deg C below the setpoint before raising
+OPT_GUARD_THERMOSTAT: Final = "guard_thermostat"  # the unit's room sensor as thermostat
+OPT_GUARD_BAND: Final = "guard_band"  # deg C either side of the setpoint
+OPT_GUARD_RUN_RAISE: Final = "guard_run_raise"  # deg C added to the unit's setpoint in a run
+OPT_GUARD_PAUSE_DROP: Final = "guard_pause_drop"  # deg C taken off in a pause
 GUARD_FAN_LEAVE: Final = "leave"
 GUARD_FAN_OPTIONS: Final = ("quiet", "low", "low_medium", "medium", "medium_high", "high")
 GUARD_DEFAULT_FAN: Final = "low_medium"
-GUARD_DEFAULT_RAISE: Final = 0.5
-GUARD_DEFAULT_BAND: Final = 0.1
+GUARD_DEFAULT_BAND: Final = 0.3
+GUARD_DEFAULT_RUN_RAISE: Final = 1.0
+GUARD_DEFAULT_PAUSE_DROP: Final = 3.0
 GUARD_TICK: Final = timedelta(seconds=30)
 CONF_ROOM_SENSOR: Final = "room_sensor"  # per indoor unit, for the guard
 MAINS_VOLTAGE: Final = 230.0  # for the estimated electricity without a meter

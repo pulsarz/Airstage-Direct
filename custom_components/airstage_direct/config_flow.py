@@ -60,7 +60,8 @@ from .const import (
     DOMAIN,
     GUARD_DEFAULT_BAND,
     GUARD_DEFAULT_FAN,
-    GUARD_DEFAULT_RAISE,
+    GUARD_DEFAULT_PAUSE_DROP,
+    GUARD_DEFAULT_RUN_RAISE,
     GUARD_FAN_LEAVE,
     GUARD_FAN_OPTIONS,
     MODEL_CUSTOM,
@@ -74,8 +75,9 @@ from .const import (
     OPT_GUARD,
     OPT_GUARD_BAND,
     OPT_GUARD_FAN,
-    OPT_GUARD_RAISE,
-    OPT_GUARD_STEER,
+    OPT_GUARD_PAUSE_DROP,
+    OPT_GUARD_RUN_RAISE,
+    OPT_GUARD_THERMOSTAT,
     OPT_METER,
     OPT_POWER_SENSOR,
     OPT_PREFERRED_UNIT,
@@ -515,9 +517,10 @@ SECTIONS: dict[str, tuple[str, ...]] = {
     SECTION_GUARD: (
         OPT_GUARD,
         OPT_GUARD_FAN,
-        OPT_GUARD_STEER,
-        OPT_GUARD_RAISE,
+        OPT_GUARD_THERMOSTAT,
         OPT_GUARD_BAND,
+        OPT_GUARD_RUN_RAISE,
+        OPT_GUARD_PAUSE_DROP,
     ),
 }
 
@@ -593,12 +596,15 @@ class AirstageOptionsFlow(OptionsFlow):
                         translation_key=OPT_GUARD_FAN,
                     )
                 ),
-                probatio.Optional(OPT_GUARD_STEER, default=True): BooleanSelector(),
-                probatio.Optional(OPT_GUARD_RAISE, default=GUARD_DEFAULT_RAISE): _number(
+                probatio.Optional(OPT_GUARD_THERMOSTAT, default=True): BooleanSelector(),
+                probatio.Optional(OPT_GUARD_BAND, default=GUARD_DEFAULT_BAND): _number(
+                    0.1, 1.0, 0.1, "°C"
+                ),
+                probatio.Optional(OPT_GUARD_RUN_RAISE, default=GUARD_DEFAULT_RUN_RAISE): _number(
                     0.5, 2.0, 0.5, "°C"
                 ),
-                probatio.Optional(OPT_GUARD_BAND, default=GUARD_DEFAULT_BAND): _number(
-                    0.0, 0.5, 0.1, "°C"
+                probatio.Optional(OPT_GUARD_PAUSE_DROP, default=GUARD_DEFAULT_PAUSE_DROP): _number(
+                    1.0, 6.0, 0.5, "°C"
                 ),
             }
         )

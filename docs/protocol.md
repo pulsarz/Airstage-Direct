@@ -134,6 +134,8 @@ Answer:
   single splits). The integration
   never writes the first two and treats a refused `ou_low_noise` as "not
   available on this unit".
+- **A switched-off unit refuses setpoint changes** (reported by the owner,
+  2026-11-16). Switch it on first, or keep the change until it is on.
 
 ## SetTime
 

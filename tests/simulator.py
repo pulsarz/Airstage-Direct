@@ -76,6 +76,7 @@ class Simulator:
         self.cut_after: int | None = None
         self.write_res: Any = "ack"
         self.ignore_writes = False  # answer ack but keep the old value
+        self.refuse_when_off = False  # refuse writes other than iu_onoff while off (real units)
         self.raw_reply: tuple[int, str] | None = None  # any status and body, verbatim
         self.single_error: str | None = None  # NG code for every one-name GetParam
         self.monitor: MonitorSchedule | None = None
@@ -140,10 +141,17 @@ class Simulator:
             if body.get("set_level") != "02":
                 self.forbidden.append(f"SetParam level {body.get('set_level')}")
             values = body.get("value") or {}
-            if self.write_res == "ack" and not self.ignore_writes:
+            write_res = self.write_res
+            if (
+                self.refuse_when_off
+                and self.indoor.get("iu_onoff") == "0"
+                and (set(values) - {"iu_onoff"})
+            ):
+                write_res = "unknown"
+            if write_res == "ack" and not self.ignore_writes:
                 self.indoor.update({k: str(v) for k, v in values.items()})
             echo = {k: self.indoor.get(k, "") for k in values}
-            return {"value": echo, **base, "write_res": self.write_res, "read_res": "ack",
+            return {"value": echo, **base, "write_res": write_res, "read_res": "ack",
                     "cause": "", "result": "OK", "error": ""}  # fmt: skip
         names: list[str] = body.get("list") or []
         if self.monitor is not None:

@@ -84,10 +84,12 @@
             "curve_slope": "Custom fan curve: m³/h per rpm",
             "curve_intercept": "Custom fan curve: m³/h at 0 rpm",
             "rated_airflow": "Custom model: rated airflow at High (m³/h)",
-            "humidity_entity": "Room humidity sensor"
+            "humidity_entity": "Room humidity sensor",
+            "room_sensor": "Room temperature sensor (for the short-cycle guard)"
           },
           "data_description": {
-            "rated_airflow": "From the same manual table as the fan curve. Lets the coil effectiveness rise at lower fan speeds; without it, it stays fixed."
+            "rated_airflow": "From the same manual table as the fan curve. Lets the coil effectiveness rise at lower fan speeds; without it, it stays fixed.",
+            "room_sensor": "Optional, experimental. A thermometer in the room, away from the airco and the sun, that reports at least every minute."
           }
         }
       },
@@ -250,6 +252,12 @@
       },
       "electricity_cooling_estimated": {
         "name": "Estimated electricity, cooling"
+      },
+      "compressor_starts": {
+        "name": "Compressor starts"
+      },
+      "compressor_starts_last_hour": {
+        "name": "Compressor starts, last hour"
       }
     },
     "binary_sensor": {
@@ -342,6 +350,23 @@
         "aseh14kjcal": "ASEH14KJCAL",
         "custom": "Custom fan curve"
       }
+    },
+    "climate_temperature": {
+      "options": {
+        "room": "Room temperature (default)",
+        "corrected_intake": "Corrected intake (what the unit regulates on)"
+      }
+    },
+    "guard_fan": {
+      "options": {
+        "leave": "Leave the fan alone",
+        "quiet": "Quiet",
+        "low": "Low",
+        "low_medium": "Low-medium",
+        "medium": "Medium",
+        "medium_high": "Medium-high",
+        "high": "High"
+      }
     }
   },
   "options": {
@@ -359,8 +384,48 @@
         "data_description": {
           "electricity_meter": "Without one, electricity is estimated from the outdoor unit's current x 230 V.",
           "coil_effectiveness": "Default 0.85, at the High fan airflow. Lower fan speeds get a higher value (about 0.90 at Medium, 0.93 at Quiet). Scales every heat estimate."
+        },
+        "sections": {
+          "compressor": {
+            "name": "Experimental: compressor starts",
+            "description": "Optional. Leave empty to keep everything as it is.",
+            "data": {
+              "power_sensor": "Power sensor for the outdoor unit (W)",
+              "compressor_on_w": "Compressor running above",
+              "compressor_off_w": "Compressor stopped below",
+              "climate_temperature": "Current temperature on the thermostat card"
+            },
+            "data_description": {
+              "power_sensor": "A power meter for the airco alone. Adds compressor start counts to the outdoor unit, to spot short-cycling.",
+              "compressor_on_w": "Default 120 W. Above the off level, below the compressor's lowest running power (cooling can run below 200 W).",
+              "compressor_off_w": "Default 80 W. Above what the meter reads while the compressor is off.",
+              "climate_temperature": "The room temperature (default) or the corrected intake: the value the unit regulates on, updated every 5 minutes."
+            }
+          },
+          "short_cycle_guard": {
+            "name": "Experimental: short-cycle guard",
+            "description": "Gives units that heat long runs and long pauses instead of short cycles. Off by default. If you use your own automation for the fan or setpoint, switch it off first.",
+            "data": {
+              "guard": "Short-cycle guard",
+              "guard_fan": "Fan while heating, instead of Auto",
+              "guard_thermostat": "Room thermostat (uses the room sensor)",
+              "guard_band": "Band either side of your setpoint",
+              "guard_run_raise": "While running, raise the unit's setpoint by",
+              "guard_pause_drop": "While pausing, lower the unit's setpoint by"
+            },
+            "data_description": {
+              "guard_fan": "While a unit heats with its fan on Auto, use this speed instead. Low-medium kept a short-cycling unit running steadily. Other fan choices are left alone.",
+              "guard_thermostat": "Needs a room temperature sensor in the indoor unit's settings. That sensor decides when the unit heats: it runs until the room is above your setpoint by the band, then pauses until the room is below it by the band. The unit's own sensor reads its warm air and would stop and restart it every few minutes. The thermostat card keeps showing your setpoint.",
+              "guard_band": "Default 0.3 °C (so 21.7–22.3 °C at 22). Wider: fewer starts, more swing. Changes are at least 5 minutes apart.",
+              "guard_run_raise": "Default 1 °C, so the unit's own sensor does not stop a run early.",
+              "guard_pause_drop": "Default 3 °C, so the unit cannot restart by itself during a pause. The Fujitsu app shows this lower setpoint during a pause."
+            }
+          }
         }
       }
+    },
+    "error": {
+      "compressor_levels": "The compressor's off level must be below its on level."
     }
   }
 }

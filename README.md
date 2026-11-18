@@ -83,6 +83,62 @@ install "Airstage Direct for Fujitsu", and restart Home Assistant.
 Give the adapters a fixed IP address in your router; if one changes, update
 it in the indoor unit's settings.
 
+## Experimental: short-cycling
+
+Some units start and stop the compressor every few minutes in mild weather
+("short-cycling"), which wastes energy and wears the compressor. These
+system settings help to see it; they are off unless you set them, and may
+change:
+
+- **Power sensor for the outdoor unit**: a power meter (W or kW) for the airco
+  alone. Adds "Compressor starts" and "Compressor starts, last hour" to the
+  outdoor unit, with the last run and pause. The on and off levels can be
+  adjusted to your meter.
+- **Current temperature on the thermostat card**: the room temperature
+  (default) or the corrected intake, the value the unit regulates on (the
+  tested unit stopped when it reached setpoint + 1 °C). It is updated every
+  5 minutes.
+
+- **Short-cycle guard** (off by default; it steers your units, so read this
+  first):
+  - *Status:* the fan setting was tried on one unit; the room thermostat
+    below has passed its tests but has not run on a real unit yet. Reports
+    welcome.
+  - *Fan while heating:* when a unit heats with its fan on Auto, the guard
+    uses a fixed speed instead (Low-medium by default). On a short-cycling unit,
+    Auto ran the fan so slowly that the unit measured its own warm air and
+    stopped early. Any other fan choice is left alone; Auto comes back when
+    the guard is switched off or the unit stops heating.
+  - *Room thermostat:* needs a room temperature sensor in the indoor unit's
+    settings. That sensor decides when the unit heats, like a central-heating
+    thermostat, with a band around your setpoint (0.3 °C by default): the
+    unit **runs** until the room is 0.3 °C above your setpoint, then
+    **pauses** until it is 0.3 °C below, then runs again. During a run the
+    unit's own setpoint is raised (1 °C by default) so its built-in sensor,
+    which reads its own warm air, does not stop it early; during a pause it
+    is lowered (3 °C by default) so the unit cannot restart by itself. On a
+    mild day this gives long runs and long pauses instead of a start every
+    few minutes; when the house needs more heat, the unit simply keeps
+    running. Changes are at least 5 minutes apart. The thermostat card keeps
+    showing your setpoint (the Fujitsu app shows the unit's).
+  - *Fail-safe:* your setpoint is stored before the guard changes it and put
+    back on every way out: the room sensor stopped reporting, the unit was switched off or out of heat (a switched-off unit
+    refuses changes, so then it happens when the unit is switched on), the
+    guard was switched off, or Home Assistant restarted. A setpoint you set in
+    Home Assistant becomes the guard's target; one set with the remote or the
+    app, or any fan change you make, ends the guard's change at once. If the guard
+    has to write more than 20 times in an hour for one unit, it stops for
+    that unit.
+  - The thermostat entity shows what it is doing (`guard`: run or pause,
+    `guard_unit_setpoint`, and `guard_last_phase` with how long the last run
+    or pause lasted, how the room moved and, with a power sensor, how often
+    the compressor started).
+  - Switch off any automation of your own that sets the fan, and try it on
+    one unit first.
+
+What was measured on a short-cycling unit, and what helped:
+[docs/measurements.md](docs/measurements.md).
+
 ## Good to know
 
 - **Monitor values update every 5 minutes.** Temperatures other than the room

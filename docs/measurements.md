@@ -6,6 +6,88 @@ indoor units, AP-WH3E-B adapters. [protocol.md](protocol.md) summarises what
 they mean. Raw output is not published; MAC, serial, IP addresses and network
 name are left out.
 
+## 2026-11-16, 23:30–00:00: a stop with the room below the setpoint, Downstairs
+
+Fan Low-medium, setpoint 22.0 °C, an early version of the guard (it lowered
+the setpoint after a stop). Power meter, the owner's room thermometer
+(a reading every 10-60 s) and read-only GetParam reads every 20 s.
+
+- **The room stayed at 21.73–21.87 °C the whole half hour**, below the
+  setpoint, and still the unit stopped.
+- 23:30–23:41 the compressor ran steadily at 490–590 W. At 23:41:40 it sped
+  up by itself to 870 W for about three minutes, slowed down, and stopped at
+  23:46:20 with the corrected intake at 23.25 °C (setpoint + 1) and the coil
+  at 42 °C (37.5 °C in steady running). Why it sped up is not known; an
+  inverter's periodic oil-return run would look like this.
+- While the compressor is off in heating, the indoor fan idles at 540–550
+  rpm whatever the setting; during the first minutes after a restart it is
+  held at about 680 rpm while the coil warms up.
+- A few minutes after the stop the corrected intake read 20.75 °C, a degree
+  below the room, and the unit restarted (23:49:55) at the end of the usual
+  3.6-minute pause, hard (up to 1485 W). With the setpoint lowered by the
+  guard to 21.5 °C (stop point 22.5), that run lasted only 3.4 minutes. The
+  next restart came after another 3.4 minutes.
+- So the unit's own sensor swung from 1.5 °C above the room to 1 °C below it
+  within minutes while the room did not move. Lowering the setpoint after a
+  stop lowers the stop point too and makes this worse; raising it while the
+  room is below the setpoint gives the sensor room for such spikes.
+
+## 2026-11-16: short-cycling in heating, Downstairs (ASEH14KJCAL) alone
+
+Three runs on one day, the other indoor units off, setpoint 22.0 °C in heat.
+Logged with read-only GetParam reads every 20 s next to Home Assistant, plus
+the owner's power meter for the outdoor unit (a reading every 3-4 s). A run
+counts from a rise above about 250 W to a drop below about 150 W (standby
+reads up to about 100 W).
+
+| | Fan Auto | Fan Medium | Fan Low-medium |
+| --- | --- | --- | --- |
+| Time | 13:30–15:22 | 15:43–18:30 | 19:24–21:30 |
+| Outdoor | 7–8 °C | 4–6 °C | 3–4 °C |
+| Runs | 13, mostly 3–5 min | 128 min, then 17 and 4.5 min | 6 min, 48, 49, then 3–5 min |
+| Pause between runs | 3.4–3.8 min every time | 3.5–3.8 min | 3.6–3.8 min |
+| Starts per hour (main part) | about 7 | about 1 | about 1.2 |
+| Lowest steady power | about 530 W | about 520 W | 390–470 W |
+| Average power (main part) | 595 W | 563 W | 604 W |
+
+**Not a clean comparison.** A cooker hood blowing outside ran from about
+15:45 to a little after 18:00, during the Medium run: that is roughly
+1.5–3 kW of extra heat demand and alone explains the long Medium run.
+Outdoor temperatures differed too (colder means more demand, so longer
+runs). The Low-medium run had nothing unusual going on.
+
+What the logs show:
+
+- **The unit stops when the corrected intake (`iu_indoor_tmp_crct`) reaches
+  setpoint + 1 °C** (as the owner had observed). The corrected intake is the
+  raw intake (`iu_suct_tmp`) minus exactly 3.0 °C while heating, and equal to
+  it while the unit is off.
+- **On Auto the corrected intake jumped by up to 2.5 °C within 5 minutes**
+  (20.25 °C just after a restart, 22.75 °C at the stop five minutes later,
+  back to 21.5 °C after the pause), with the indoor fan at only 540–720 rpm
+  and the coil at 37–44 °C. No room changes that fast: the intake reads the
+  unit's own warm air. With the fan on Medium (about 960 rpm) the corrected
+  intake stayed at 21.75–22.5 °C and matched the owner's own thermometer
+  (22.3 °C).
+- **The pause between runs is almost always 3.4–3.8 minutes**, on every fan
+  setting: the unit restarts at the first moment it may.
+- **Every restart is a burst**: 1.3–1.6 kW (2.2–2.3 kW right after switching
+  on, 52–69 Hz) instead of a slow ramp from the minimum. Runs that end within
+  5 minutes end at high power, not after ramping down. When the room is
+  already warm, a restart burst is often followed by another short run.
+- **The lowest steady power depends on the fan setting**: on Low-medium the
+  compressor went down to 13–14 Hz (390–470 W); on Medium it stayed at
+  19–20 Hz (about 520 W); the owner reports about 350 W on Auto once settled.
+  On Low-medium the two long runs both ended at that minimum: the house then
+  needed less heat than the lowest output, which no fan setting changes.
+- **`iu_indoor_tmp` (the room temperature) sometimes moves** every minute in
+  0.25 °C steps, close to the corrected intake, and sometimes sits at exactly
+  the setpoint (22.00 °C) for half an hour or more. What switches it is not
+  known.
+- The 5-minute monitor snapshots alone cannot count this: a snapshot shows
+  the compressor off only when it happens to fall in a 3.6-minute pause, and
+  never shows how long a run lasted. The power meter can.
+
 ## 2026-11-15, night: sensors in Home Assistant
 
 A test build ran on the owner's Home Assistant 2026.11.1. Its debug log

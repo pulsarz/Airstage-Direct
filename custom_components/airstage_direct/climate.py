@@ -28,8 +28,10 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AirstageConfigEntry
 from .api.codecs import FanSpeed, OpMode
+from .const import CLIMATE_TEMPERATURE_INTAKE, OPT_CLIMATE_TEMPERATURE
 from .coordinator import UnitCoordinator
 from .entity import AirstageEntity, run_writes
+from .guard import UnitGuard
 
 PARALLEL_UPDATES = 0  # writes are serialised per adapter by the transport
 
@@ -87,6 +89,14 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
 
     def __init__(self, coordinator: UnitCoordinator) -> None:
         super().__init__(coordinator, "climate")
+        # Experimental option: show the corrected intake (what the unit regulates
+        # on, refreshed every 5 minutes) instead of the room temperature.
+        source = coordinator.config_entry.options.get(OPT_CLIMATE_TEMPERATURE)
+        self._temperature_object = (
+            "iu_indoor_tmp_crct" if source == CLIMATE_TEMPERATURE_INTAKE else "iu_indoor_tmp"
+        )
+        if self._temperature_object != "iu_indoor_tmp":
+            self._names = (*self._names[:-1], self._temperature_object)
         self._attr_hvac_modes = [HVACMode.OFF, *MODE_TO_HA.values()]
         self._attr_fan_modes = list(FAN_TO_HA.values())
         device = coordinator.device
@@ -121,12 +131,32 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
         return None
 
     def _room_temperature(self) -> float | None:
-        value = self.device.value("iu_indoor_tmp")  # None/Missing while it reads 65535
+        value = self.device.value(self._temperature_object)  # None/Missing while 65535
         return value if isinstance(value, float) else None
 
+    def _unit_guard(self) -> UnitGuard | None:
+        guard = self.coordinator.config_entry.runtime_data.guard
+        if guard is None or not guard.enabled:
+            return None
+        return guard.units.get(self.coordinator.subentry.subentry_id)
+
     def _setpoint(self) -> float | None:
+        unit_guard = self._unit_guard()
+        if unit_guard is not None and unit_guard.stored.user_setpoint is not None:
+            return unit_guard.stored.user_setpoint  # the user's, not the guard's
         value = self.device.value("iu_set_tmp")
         return value if isinstance(value, float) else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        unit_guard = self._unit_guard()
+        return unit_guard.attributes() if unit_guard is not None else None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        guard = self.coordinator.config_entry.runtime_data.guard
+        if guard is not None and guard.enabled:
+            self.async_on_remove(guard.add_listener(self.async_write_ha_state))
 
     def _limits(self) -> tuple[float, float]:
         caps = self.device.capabilities
@@ -203,7 +233,11 @@ class AirstageClimate(AirstageEntity, ClimateEntity):
                 if self.device.value("iu_onoff") is not True:
                     writes.append(self.device.set_power(True))
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is not None:
-            writes.append(self.device.set_setpoint(float(temperature)))
+            unit_guard = self._unit_guard()
+            # With the guard in control, the new setpoint is its target and the
+            # unit gets the matching run or pause setpoint.
+            if unit_guard is None or not unit_guard.user_target(float(temperature)):
+                writes.append(self.device.set_setpoint(float(temperature)))
         await self._run(*writes)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:

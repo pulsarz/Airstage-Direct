@@ -41,6 +41,30 @@ OPT_AIRFLOW_SCALE: Final = "airflow_scale"
 OPT_METER: Final = "electricity_meter"  # an energy (kWh/Wh) sensor for the airco alone
 OPT_PREFERRED_UNIT: Final = "preferred_outdoor_unit"  # subentry id
 OPT_PUSH: Final = "push"
+# Experimental, phase 7: a power sensor for the outdoor unit (W or kW) gives
+# compressor starts and stops; the thermostat card can show the corrected intake.
+OPT_POWER_SENSOR: Final = "power_sensor"
+OPT_COMPRESSOR_ON_W: Final = "compressor_on_w"
+OPT_COMPRESSOR_OFF_W: Final = "compressor_off_w"
+OPT_CLIMATE_TEMPERATURE: Final = "climate_temperature"
+CLIMATE_TEMPERATURE_ROOM: Final = "room"  # iu_indoor_tmp, the default
+CLIMATE_TEMPERATURE_INTAKE: Final = "corrected_intake"  # iu_indoor_tmp_crct
+COMPRESSOR_TICK: Final = timedelta(seconds=10)
+# Experimental: the short-cycle guard (guard.py).
+OPT_GUARD: Final = "guard"
+OPT_GUARD_FAN: Final = "guard_fan"  # a fan key from guard.FAN_OPTIONS, or GUARD_FAN_LEAVE
+OPT_GUARD_THERMOSTAT: Final = "guard_thermostat"  # the unit's room sensor as thermostat
+OPT_GUARD_BAND: Final = "guard_band"  # deg C either side of the setpoint
+OPT_GUARD_RUN_RAISE: Final = "guard_run_raise"  # deg C added to the unit's setpoint in a run
+OPT_GUARD_PAUSE_DROP: Final = "guard_pause_drop"  # deg C taken off in a pause
+GUARD_FAN_LEAVE: Final = "leave"
+GUARD_FAN_OPTIONS: Final = ("quiet", "low", "low_medium", "medium", "medium_high", "high")
+GUARD_DEFAULT_FAN: Final = "low_medium"
+GUARD_DEFAULT_BAND: Final = 0.3
+GUARD_DEFAULT_RUN_RAISE: Final = 1.0
+GUARD_DEFAULT_PAUSE_DROP: Final = 3.0
+GUARD_TICK: Final = timedelta(seconds=30)
+CONF_ROOM_SENSOR: Final = "room_sensor"  # per indoor unit, for the guard
 MAINS_VOLTAGE: Final = 230.0  # for the estimated electricity without a meter
 ESTIMATE_TICK: Final = timedelta(seconds=60)
 # Subentry data that is bookkeeping, not configuration: no reload when it changes.

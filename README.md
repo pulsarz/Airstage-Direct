@@ -101,8 +101,8 @@ change:
 
 - **Short-cycle guard** (off by default; it steers your units, so read this
   first):
-  - *Status:* the fan setting was tried on one unit; the room thermostat
-    below has passed its tests but has not run on a real unit yet. Reports
+  - *Status:* tried on one unit (a multi-split in heating), where it worked
+    fairly well. Not tested with several units heating at once. Reports
     welcome.
   - *Fan while heating:* when a unit heats with its fan on Auto, the guard
     uses a fixed speed instead (Low-medium by default). On a short-cycling unit,
